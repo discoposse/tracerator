@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
-# Legacy launcher - now just starts via Docker Compose for the Tracerator UI.
+# Use docker compose to run the Tracerator UI.
 
-docker compose up
+docker compose up -d
+echo "Open http://localhost:8000 for the UI."

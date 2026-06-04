@@ -11,15 +11,16 @@
     pre { background: #0f172a; color: #e2e8f0; padding: 0.5rem; border-radius: 4px; overflow: auto; font-size: 0.75rem; }
     input[type=range] { width: 100%; }
     .preview-value { font-family: ui-monospace, monospace; font-weight: 600; }
+    .est-box { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem; }
   </style>
 </head>
 <body class="bg-white text-slate-900 p-6 max-w-4xl mx-auto">
-  <h1 class="text-3xl font-semibold mb-1">Tracerator</h1>
-  <p class="text-sm text-slate-600 mb-6">Generate simulated traces from base patterns for replay and modeling.</p>
+  <h1 class="text-3xl font-semibold mb-2">Tracerator</h1>
+  <p class="text-sm text-slate-600 mb-6">Generate simulated traces from base patterns.</p>
 
   <div class="section">
-    <h2 class="font-medium mb-2">Base trace</h2>
-    <select id="base" class="border p-1 text-sm w-full md:w-auto">
+    <h2 class="font-medium mb-2">1. Select base</h2>
+    <select id="base" class="border p-1 text-sm" onchange="updatePreview()">
       <option value="conversation">Conversation</option>
       <option value="toolagent">Tool &amp; Agent</option>
       <option value="synthetic">Synthetic</option>
@@ -27,60 +28,60 @@
   </div>
 
   <div class="section">
-    <h2 class="font-medium mb-3">Parameters</h2>
+    <h2 class="font-medium mb-3">2. Adjust parameters</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
       <div>
         <label class="block mb-1">Scale <span id="scale-val" class="preview-value">1.0</span></label>
-        <input type="range" id="scale" min="0.1" max="10" step="0.1" value="1.0">
+        <input type="range" id="scale" min="0.1" max="10" step="0.1" value="1.0" oninput="updateLabels()">
       </div>
       <div>
         <label class="block mb-1">Input length multiplier <span id="input-val" class="preview-value">1.0</span></label>
-        <input type="range" id="input" min="0.1" max="5" step="0.1" value="1.0">
+        <input type="range" id="input" min="0.1" max="5" step="0.1" value="1.0" oninput="updateLabels()">
       </div>
       <div>
         <label class="block mb-1">Output length multiplier <span id="output-val" class="preview-value">1.0</span></label>
-        <input type="range" id="output" min="0.1" max="5" step="0.1" value="1.0">
+        <input type="range" id="output" min="0.1" max="5" step="0.1" value="1.0" oninput="updateLabels()">
       </div>
       <div>
         <label class="block mb-1">Reuse bias <span id="reuse-val" class="preview-value">0.5</span></label>
-        <input type="range" id="reuse" min="0" max="1" step="0.01" value="0.5">
+        <input type="range" id="reuse" min="0" max="1" step="0.01" value="0.5" oninput="updateLabels()">
       </div>
       <div>
         <label class="block mb-1">New sessions <span id="sessions-val" class="preview-value">0</span></label>
-        <input type="range" id="sessions" min="0" max="100" step="1" value="0">
+        <input type="range" id="sessions" min="0" max="100" step="1" value="0" oninput="updateLabels()">
       </div>
       <div>
         <label class="block mb-1">Modeled mix <span id="mix-val" class="preview-value">0.0</span></label>
-        <input type="range" id="mix" min="0" max="1" step="0.05" value="0.0">
+        <input type="range" id="mix" min="0" max="1" step="0.05" value="0.0" oninput="updateLabels()">
       </div>
       <div>
         <label class="block mb-1">Seed</label>
-        <input type="number" id="seed" value="42" class="border p-1 w-24">
+        <input type="number" id="seed" value="42" class="border p-1 w-24" oninput="updateLabels()">
       </div>
     </div>
   </div>
 
   <div class="section">
-    <h2 class="font-medium mb-3">Preview (live estimates)</h2>
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-      <div>
+    <h2 class="font-medium mb-3">Live estimates</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+      <div class="est-box">
         <div class="text-xs text-slate-500">Estimated requests</div>
         <div id="out-reqs" class="text-2xl font-semibold preview-value">12000</div>
       </div>
-      <div>
+      <div class="est-box">
         <div class="text-xs text-slate-500">Est. duration</div>
         <div id="out-dur" class="text-xl font-medium preview-value">~1.0h</div>
       </div>
-      <div>
+      <div class="est-box">
         <div class="text-xs text-slate-500">Est. cache hit ratio</div>
         <div id="out-hit" class="text-xl font-medium preview-value text-emerald-600">50%</div>
       </div>
-      <div>
+      <div class="est-box">
         <div class="text-xs text-slate-500">Approx max concurrency</div>
         <div id="out-burst" class="text-xl font-medium preview-value">10</div>
       </div>
     </div>
-    <div class="text-xs text-slate-500 mt-2">Estimates are approximate and based on the selected base pattern + current parameters.</div>
+    <div class="text-xs text-slate-500 mt-2">These update as you change the parameters above.</div>
   </div>
 
   <div class="flex gap-2 mb-6">
@@ -92,21 +93,21 @@
     <h2 class="font-medium mb-2">Output</h2>
     <div class="mb-3">
       <a id="download-link" href="#" download="tracerator-output.zip" class="inline-block px-3 py-1 bg-blue-600 text-white rounded text-sm">Download zip</a>
-      <span class="text-xs text-slate-500 ml-2">(contains trace.jsonl and manifest.json)</span>
+      <span class="text-xs text-slate-500 ml-2">(trace.jsonl and manifest.json)</span>
     </div>
     <div class="mb-3">
       <div class="text-xs font-medium mb-1">Manifest</div>
       <pre id="manifest-pre" class="text-xs"></pre>
     </div>
-    <div class="mt-3">
+    <div>
       <div class="text-xs font-medium mb-1">Sample trace lines</div>
       <pre id="sample-pre" class="text-xs"></pre>
     </div>
   </div>
 
   <div class="mt-8 text-xs text-slate-500">
-    <p>Simulated traces based on statistical patterns from base collections. Output is in the standard format for replay.</p>
-    <p class="mt-1">Run with: docker compose up (see README).</p>
+    <p>Output is generated server-side based on the selected base and parameters. The zip is ready for use in modeling tools.</p>
+    <p class="mt-1">See README.md for how to run.</p>
   </div>
 
   <script>

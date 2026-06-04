@@ -1,7 +1,7 @@
 # Tracerator UI
 
-The UI for the app is here (index.html).
+This is the UI for the app.
 
-It provides parameter controls with live preview estimates, and actual generation of the zip via the backend.
+Open index.html or run the container with docker compose up from the project root.
 
-Run the full thing with docker compose from the project root.
+See the main README.md for full instructions and details.

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
-# Legacy shim - use docker compose from root instead.
+# Legacy path. Use docker compose from the project root instead.
 
-docker compose up
+docker compose up -d
+echo "Open http://localhost:8000 for the UI."
