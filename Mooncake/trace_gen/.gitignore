@@ -1,0 +1,14 @@
+# Ignore the generated UI virtualenv
+.venv_ui/
+.venv/
+venv/
+ENV/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Any local test outputs (but keep committed small demos in examples/)
+testout/
