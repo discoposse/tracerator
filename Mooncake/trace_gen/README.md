@@ -137,3 +137,7 @@ PRs / changes to the generator should keep the invariant: **any default or "real
 
 - Mooncake-FAST25.pdf (in parent dir)
 - Original open-sourced traces + system: https://github.com/kvcache-ai/Mooncake
+
+## License
+
+See the root [LICENSE](../LICENSE) file (Apache-2.0). The generator code and documentation are released under the same license as the rest of this repository.

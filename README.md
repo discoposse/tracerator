@@ -60,3 +60,35 @@ Each line in a trace:
 - The three traces correspond to the "Conversation", "Tool&Agent", and "Synthetic" workloads in §5.2.1 and Appendix A of the paper.
 
 Questions on the semantics of the traces or how to interpret reuse should start from the narrative and the paper (especially the scheduling algorithm and the definition of effective request capacity under TTFT/TBT SLOs).
+
+## License
+
+This repository is licensed under the [Apache License 2.0](LICENSE).
+
+The trace data (`Mooncake/traces/*.jsonl` and the arXiv variant) is derived from the open-sourced dataset in the [Mooncake](https://github.com/kvcache-ai/Mooncake) project, which is also licensed under Apache-2.0. The generator code, scripts, documentation, and extensions in `Mooncake/trace_gen/` and at the root are new work also released under Apache-2.0.
+
+See the [LICENSE](LICENSE) file for full details and attribution requirements.
+
+## Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on reporting issues, submitting pull requests, and working with the trace data and generator.
+
+## Citation
+
+If you use these traces or the generator in academic work, please cite the original Mooncake paper:
+
+```bibtex
+@article{qin2024mooncake,
+  title={Mooncake: Trading More Storage for Less Computation -- A {KVCache}-centric Architecture for Serving {LLM} Chatbot},
+  author={Qin, Ruoyu and Li, Zheming and He, Weiran and Cui, Jialei and Ren, Feng and Zhang, Mingxing and Wu, Yongwei and Zheng, Weimin and Xu, Xinran},
+  journal={arXiv preprint arXiv:2407.00079},
+  year={2024}
+}
+```
+
+The traces and this tooling are intended to help the community build more realistic performance models for disaggregated LLM serving systems.
+
+## Acknowledgments
+
+- The Mooncake team at Moonshot AI and Tsinghua University for open-sourcing the traces and the system.
+- The original traces and paper are available at https://github.com/kvcache-ai/Mooncake.

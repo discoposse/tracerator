@@ -12,3 +12,10 @@ __pycache__/
 
 # Any local test outputs (but keep committed small demos in examples/)
 testout/
+
+# OS artifacts (for when viewing this subdir in isolation)
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Thumbs.db:encryptable
+*~
