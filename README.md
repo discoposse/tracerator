@@ -1,5 +1,7 @@
 # Traces from Mooncake (FAST'25)
 
+> **For the best experience, open the [beautiful Mintlify-style landing page](site/index.html)** (or run `python -m http.server -d site`).
+
 This directory contains the open-sourced production-derived request traces used in the Mooncake paper, plus tooling to understand them and generate scaled, parameter-controlled extensions that **faithfully reproduce real enterprise LLM workload patterns**.
 
 ## Contents
@@ -21,7 +23,18 @@ Generic generators (independent requests, uniform or simple normal lengths, Pois
 
 ## The Tool
 
-See [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md) (including the pinned `requirements.txt` for reproducible UI environments) and run:
+For the best developer experience, start with the polished landing page:
+
+```bash
+# Open in your browser
+open site/index.html
+# or
+python -m http.server -d site 8000
+```
+
+The interactive landing page gives you an immediate feel for the traces and the generator.
+
+You can also launch the full slider UI directly:
 
 ```bash
 ./run_trace_ui.sh
