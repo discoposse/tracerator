@@ -13,16 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# One-command launcher for the Mooncake Trace Workload Extender UI.
+# One-command launcher for the Realistic LLM Trace Extender UI.
 # Creates an isolated venv, installs deps from requirements.txt (pinned for
 # safety + reproducibility), and runs the slider UI.
 #
-# Usage (from repo root or traces/):
-#   bash Mooncake/trace_gen/run_ui.sh
+# Usage (from repo root):
+#   ./run_trace_ui.sh
 #
 # Then open the URL it prints (usually http://localhost:8501).
-# Use the UI to load a trace (builtin or your own .jsonl), set sliders,
-# generate, and download the extended trace + manifest for the perf team.
+# Use the UI to load a trace from the current collection (or upload your own),
+# adjust parameters, generate extended traces + manifests, and hand the results
+# to your modeling / perf pipeline.
 #
 # See requirements.txt for the frozen package set and how to regenerate it.
 

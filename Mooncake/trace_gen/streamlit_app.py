@@ -14,21 +14,20 @@
 # limitations under the License.
 
 """
-Mooncake Real Workload Trace Extender - Slider UI
+Realistic LLM Trace Extender - Slider UI
 
 Streamlit app for:
-- Loading a real Mooncake-style trace (builtin or your .jsonl upload)
-- Inspecting narrative-backed stats and patterns (bursts, cache sharing)
-- Using sliders to control scale, input/output length multipliers, reuse bias
-  (cache intensity), burst preservation, time jitter, new session injection, seed
-- Previewing before/after distributions + key metrics
-- Generating a bulked-up trace + manifest that *exactly follows* the real
-  enterprise patterns (not generic fakes)
-- Downloading the extended .jsonl + manifest.json for the perf modeling team
+- Loading production-derived traces (currently Mooncake collection, or upload your own)
+- Inspecting workload characteristics (burstiness, prefix cache sharing, length distributions)
+- Using sliders to control scale, input/output multipliers, reuse bias, new sessions, etc.
+- Previewing estimates and generating extended traces + full manifests
+- Preserving the statistical structure of real enterprise traffic instead of falling back to generic synthetic data
+
+The generator works with the standard trace schema and is designed to support multiple future trace sources.
 
 Run:
-  bash Mooncake/trace_gen/run_ui.sh
-  # or manually after pip install -r ...
+  ./run_trace_ui.sh
+  # or manually after pip install -r requirements.txt
 """
 
 import json
@@ -51,9 +50,9 @@ from generator import (
     BUILTIN_TRACES, load_builtin, save_trace, save_manifest
 )
 
-st.set_page_config(page_title="Mooncake Trace Workload Extender", layout="wide", page_icon="📈")
+st.set_page_config(page_title="Realistic LLM Trace Extender", layout="wide", page_icon="📈")
 
-st.title("Mooncake Trace Workload Extender")
+st.title("Realistic LLM Trace Extender")
 st.caption("Scale real Kimi enterprise traces with controllable parameters while preserving burstiness, heavy tails, and *authentic* KVCache prefix sharing patterns. Output is modeling-tool ready with full manifest.")
 
 # ---------- Sidebar: load / select base ----------
@@ -80,7 +79,7 @@ needs_reload = (loaded.get("choice") != base_choice) or (base_reqs is None)
 
 if base_choice == "Upload custom .jsonl":
     uploaded_file = st.sidebar.file_uploader(
-        "Upload a Mooncake-format trace (.jsonl)", type=["jsonl", "json", "txt"], key="trace_upload"
+        "Upload a trace (.jsonl)", type=["jsonl", "json", "txt"], key="trace_upload"
     )
     if uploaded_file is not None:
         # Reparse only if choice changed or we have no data, or the uploaded filename is different
@@ -123,7 +122,7 @@ elif needs_reload:
         analysis = None
 
 if base_reqs is None or analysis is None:
-    st.info("Select a builtin (auto-loads) or upload a .jsonl file to begin. The three builtins are the exact traces from the Mooncake paper.")
+    st.info("Select a trace from the current collection (auto-loads) or upload your own .jsonl following the standard schema.")
     st.stop()
 
 assert analysis is not None
@@ -325,12 +324,12 @@ if "last_ext" in st.session_state and "last_manifest" in st.session_state:
     with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("trace.jsonl", buf.getvalue())
         zf.writestr("manifest.json", man_buf)
-        zf.writestr("README.txt", f"Generated from {display_label} using mooncake-trace-gen.\nSee manifest for full params and stats.\n\nCompatible with Mooncake perf modeling pipeline.\n")
+        zf.writestr("README.txt", f"Generated from {display_label} using trace-gen.\nSee manifest for full params and stats.\n\n")
     zbuf.seek(0)
     st.download_button(
         "⬇️ Download both as .zip (recommended for handoff)",
         data=zbuf,
-        file_name=f"mooncake_extended_{display_label.replace(' ', '_')}_x{gen_scale}_s{gen_seed}.zip",
+        file_name=f"extended_{display_label.replace(' ', '_')}_x{gen_scale}_s{gen_seed}.zip",
         mime="application/zip",
         use_container_width=True
     )
@@ -345,4 +344,4 @@ if "last_ext" in st.session_state and "last_manifest" in st.session_state:
             st.write("Compare to base:", analysis.summary())
 
 st.divider()
-st.caption("Important: This tool deliberately clones the burst structure and prefix-sharing topology of the real traces (with controlled perturbations and optional modeled additions). It does **not** produce simplistic uniform or Poisson-only fakes. See Mooncake/WORKLOAD_NARRATIVE.md for why this fidelity matters.")
+st.caption("This tool preserves real statistical structure (bursts, prefix sharing, length distributions) instead of falling back to generic synthetic data.")

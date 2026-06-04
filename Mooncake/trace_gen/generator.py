@@ -14,15 +14,19 @@
 # limitations under the License.
 
 """
-Mooncake Trace Workload Generator
+Realistic Trace Workload Generator
 
-Core library for loading real Mooncake traces, analyzing their enterprise
-patterns (bursty arrivals, structured KV block prefix sharing, heavy-tailed
-lengths), and generating scaled, parameterized extensions that preserve
-realistic characteristics for perf modeling.
+Core library for loading production-derived LLM serving traces, analyzing
+their key statistical properties (bursty arrivals, structured KV block
+prefix sharing via hash_ids, heavy-tailed lengths), and generating scaled,
+parameterized extensions that preserve the fidelity of real enterprise
+workloads for performance modeling and "what-if" experiments.
 
-DO NOT generate generic IID fakes. All extensions are derived from or
-mimic the statistical structure of the provided production traces.
+The generator is source-agnostic and works with any traces following the
+standard schema. Mooncake traces are the first collection.
+
+DO NOT generate naive synthetic data (independent requests, Poisson arrivals,
+random hash_ids). The value comes from preserving real patterns.
 """
 
 import json
@@ -478,7 +482,7 @@ def generate_extended(
                   max(1, len(sample_hits))) if sample_hits else 0.0
 
     manifest = {
-        "generator": "mooncake-trace-gen v0.1",
+        "generator": "trace-gen v0.2",
         "base_trace": analysis.name,
         "base_stats": {
             "n": analysis.n_reqs,

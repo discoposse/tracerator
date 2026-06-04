@@ -13,13 +13,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Convenience wrapper: run the Mooncake trace extender UI from anywhere in the traces tree.
+# Convenience wrapper: run the Realistic LLM Trace Extender UI from the repo root.
 #
 # This will:
 #   - Create an isolated .venv_ui (if needed)
 #   - Install pinned versions from requirements.txt (first time only, 1-5 min)
-#   - Launch the slider-based web UI for loading/extending real Mooncake traces
+#   - Launch the slider-based web UI for loading traces and generating
+#     controllable, high-fidelity extensions (with full manifests)
 #
-# Then use the UI to generate extended traces + manifests for the perf team.
+# The project supports multiple trace collections over time. Mooncake traces
+# are the first collection.
 set -euo pipefail
 exec bash Mooncake/trace_gen/run_ui.sh "$@"

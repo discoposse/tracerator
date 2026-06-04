@@ -1,12 +1,12 @@
-# Contributing to Mooncake Traces
+# Contributing to Realistic LLM Traces
 
-Thank you for your interest in contributing to this repository! It contains production-derived request traces from the [Mooncake](https://github.com/kvcache-ai/Mooncake) project (used in the FAST'25 paper) along with tools to analyze, extend, and generate new traces that preserve realistic enterprise LLM serving patterns.
+Thank you for your interest in contributing! This repository hosts production-derived LLM serving traces (starting with the Mooncake / Kimi collection) along with tools to analyze them and generate controllable extensions that preserve the statistical properties that matter for real systems research and performance modeling.
 
 ## How to Contribute
 
 ### Reporting Issues
 - Use the GitHub issue tracker.
-- For trace-related questions (format, semantics, KVCache hash_ids, etc.), please reference the original [Mooncake paper](Mooncake/Mooncake-FAST25.pdf) and [WORKLOAD_NARRATIVE.md](Mooncake/WORKLOAD_NARRATIVE.md).
+- For questions about a specific collection, refer to its documentation (e.g., the Mooncake [narrative](Mooncake/WORKLOAD_NARRATIVE.md) and paper).
 - When reporting bugs in the generator UI or scripts, include:
   - The exact command or steps
   - Python / Streamlit version
@@ -27,15 +27,15 @@ Thank you for your interest in contributing to this repository! It contains prod
 - The UI (`streamlit_app.py`) uses Streamlit best practices for state management (`st.session_state` + widget `key`s) so that configuration survives reruns.
 
 ### Trace Data
-- The canonical traces live under `Mooncake/traces/`.
+- Current traces live under `Mooncake/traces/` (first collection).
 - Do **not** commit very large generated traces to the repo.
-- Small demo extensions can live in `Mooncake/trace_gen/examples/`.
-- If you create new high-fidelity generators or analysis scripts, prefer adding them under `trace_gen/` with documentation.
+- Small demo extensions can live under the relevant collection's generator examples folder.
+- New collections should live at the top level alongside `Mooncake/`, with their own documentation.
 
 ### License
 By contributing, you agree that your contributions will be licensed under the same [Apache License 2.0](LICENSE) as the rest of the project.
 
 ## Questions?
-Open a discussion or issue on GitHub. For questions specifically about the original Mooncake system or the semantics of the traces, the upstream [kvcache-ai/Mooncake](https://github.com/kvcache-ai/Mooncake) repository and its issues are the best place.
+Open a discussion or issue on GitHub. For questions about a specific collection (e.g. Mooncake traces), the upstream source and its documentation are the best starting point. For the generator, UI, or general extensibility, this repo's issues are perfect.
 
-Thanks again for helping keep these traces useful for realistic LLM serving research and modeling!
+Thanks for helping make realistic, high-fidelity workload data available to the community!
