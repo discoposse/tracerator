@@ -14,7 +14,7 @@ Generic generators (independent requests, uniform or simple normal lengths, Pois
 
 ## The Tool
 
-The tool is called Tracerator. The graphical UI is the self-contained page at site/index.html.
+The tool is called Tracerator. The graphical UI is the self-contained fancy page at site/index.html (with live estimates that update dynamically as you adjust the sliders).
 
 To run:
 
