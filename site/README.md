@@ -1,7 +1,7 @@
 # Tracerator UI
 
-Served by the backend at / .
+The UI for the app is here (index.html).
 
-See main README for running with docker compose.
+It provides parameter controls with live preview estimates, and actual generation of the zip via the backend.
 
-The UI allows parameter selection and generation of a zip with actual trace.jsonl and manifest.json .
+Run the full thing with docker compose from the project root.

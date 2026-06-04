@@ -2,48 +2,61 @@
 
 Tracerator generates simulated traces from base patterns for replay and modeling.
 
-## Running
+## UI
 
-Use Docker Compose (recommended):
+The UI is at site/index.html (served by the app).
+
+Run with Docker Compose:
 
 ```bash
 docker compose up -d
 ```
 
-Open http://localhost:8000 .
+Open http://localhost:8000.
 
-The page is the UI:
+In the UI:
 
-- Choose base
-- Set parameters using the sliders
-- "Generate" downloads a zip (trace.jsonl + manifest.json)
-- "Preview manifest" shows the manifest and sample lines on the page
+- Select base trace pattern
+
+- Adjust parameters with sliders (live preview updates estimates for requests, duration, cache hit, concurrency)
+
+- Generate: downloads zip with trace.jsonl + manifest.json (actual output from backend)
+
+- Preview manifest: shows manifest and sample trace lines
+
+Parameters affect the simulation based on the base stats.
 
 ## Parameters
 
 - base
+
 - scale
+
 - input_mult, output_mult
+
 - reuse_bias
+
 - new_sessions
+
 - modeled_mix
+
 - seed
 
-The output is suitable for replay in modeling tools.
+## Running locally (dev)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
+
+Open http://localhost:8000
+
+See docker-compose.yml and app.py for the backend that handles real generation and serving the UI.
 
 ## Notes
 
-This produces output based on statistical patterns from the base collection(s). It is intended for testing and modeling purposes.
+Output is simulated from observed patterns in the base collection(s). Intended for testing/modeling.
 
-See the site/ for the UI source if customizing.
-
-To run locally without Docker:
-
-pip install -r requirements.txt
-python app.py
-
-Then open http://localhost:8000
-
-## Old launchers
-
-The run_trace_ui.sh and related scripts in Mooncake/trace_gen/ are legacy and no longer the primary path. The Docker Compose + static UI is the current way. 
+The first collection is based on Mooncake traces. The tool and UI support the schema for additional collections.

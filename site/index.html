@@ -3,55 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tracerator</title> <!-- plain UI -->
-  <!-- plain tool UI for generating replayable simulated traces -->
+  <title>Tracerator</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: system-ui, sans-serif; }
-    .section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; }
+    .section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
     pre { background: #0f172a; color: #e2e8f0; padding: 0.5rem; border-radius: 4px; overflow: auto; font-size: 0.75rem; }
     input[type=range] { width: 100%; }
+    .preview-value { font-family: ui-monospace, monospace; font-weight: 600; }
   </style>
 </head>
 <body class="bg-white text-slate-900 p-6 max-w-4xl mx-auto">
   <h1 class="text-3xl font-semibold mb-1">Tracerator</h1>
-  <p class="text-sm text-slate-600 mb-6">Generate simulated traces from base patterns for replay and modeling. (updated)</p>
-  <!-- Tracerator UI -->
+  <p class="text-sm text-slate-600 mb-6">Generate simulated traces from base patterns for replay and modeling.</p>
 
-  <div class="section mb-6">
-    <h2 class="font-medium mb-2">Base</h2>
-    <select id="base" class="border p-1 text-sm">
-      <option value="conversation">Conversation (example base)</option>
+  <div class="section">
+    <h2 class="font-medium mb-2">Base trace</h2>
+    <select id="base" class="border p-1 text-sm w-full md:w-auto">
+      <option value="conversation">Conversation</option>
       <option value="toolagent">Tool &amp; Agent</option>
       <option value="synthetic">Synthetic</option>
     </select>
   </div>
 
-  <div class="section mb-6">
+  <div class="section">
     <h2 class="font-medium mb-3">Parameters</h2>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
       <div>
-        <label class="block mb-1">Scale <span id="scale-val" class="font-mono">1.0</span></label>
+        <label class="block mb-1">Scale <span id="scale-val" class="preview-value">1.0</span></label>
         <input type="range" id="scale" min="0.1" max="10" step="0.1" value="1.0">
       </div>
       <div>
-        <label class="block mb-1">Input length multiplier <span id="input-val" class="font-mono">1.0</span></label>
+        <label class="block mb-1">Input length multiplier <span id="input-val" class="preview-value">1.0</span></label>
         <input type="range" id="input" min="0.1" max="5" step="0.1" value="1.0">
       </div>
       <div>
-        <label class="block mb-1">Output length multiplier <span id="output-val" class="font-mono">1.0</span></label>
+        <label class="block mb-1">Output length multiplier <span id="output-val" class="preview-value">1.0</span></label>
         <input type="range" id="output" min="0.1" max="5" step="0.1" value="1.0">
       </div>
       <div>
-        <label class="block mb-1">Reuse bias <span id="reuse-val" class="font-mono">0.5</span></label>
+        <label class="block mb-1">Reuse bias <span id="reuse-val" class="preview-value">0.5</span></label>
         <input type="range" id="reuse" min="0" max="1" step="0.01" value="0.5">
       </div>
       <div>
-        <label class="block mb-1">New sessions <span id="sessions-val" class="font-mono">0</span></label>
+        <label class="block mb-1">New sessions <span id="sessions-val" class="preview-value">0</span></label>
         <input type="range" id="sessions" min="0" max="100" step="1" value="0">
       </div>
       <div>
-        <label class="block mb-1">Modeled mix <span id="mix-val" class="font-mono">0.0</span></label>
+        <label class="block mb-1">Modeled mix <span id="mix-val" class="preview-value">0.0</span></label>
         <input type="range" id="mix" min="0" max="1" step="0.05" value="0.0">
       </div>
       <div>
@@ -59,6 +58,29 @@
         <input type="number" id="seed" value="42" class="border p-1 w-24">
       </div>
     </div>
+  </div>
+
+  <div class="section">
+    <h2 class="font-medium mb-3">Preview (live estimates)</h2>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+      <div>
+        <div class="text-xs text-slate-500">Estimated requests</div>
+        <div id="out-reqs" class="text-2xl font-semibold preview-value">12000</div>
+      </div>
+      <div>
+        <div class="text-xs text-slate-500">Est. duration</div>
+        <div id="out-dur" class="text-xl font-medium preview-value">~1.0h</div>
+      </div>
+      <div>
+        <div class="text-xs text-slate-500">Est. cache hit ratio</div>
+        <div id="out-hit" class="text-xl font-medium preview-value text-emerald-600">50%</div>
+      </div>
+      <div>
+        <div class="text-xs text-slate-500">Approx max concurrency</div>
+        <div id="out-burst" class="text-xl font-medium preview-value">10</div>
+      </div>
+    </div>
+    <div class="text-xs text-slate-500 mt-2">Estimates are approximate and based on the selected base pattern + current parameters.</div>
   </div>
 
   <div class="flex gap-2 mb-6">
@@ -72,8 +94,8 @@
       <a id="download-link" href="#" download="tracerator-output.zip" class="inline-block px-3 py-1 bg-blue-600 text-white rounded text-sm">Download zip</a>
       <span class="text-xs text-slate-500 ml-2">(contains trace.jsonl and manifest.json)</span>
     </div>
-    <div>
-      <div class="text-xs font-medium mb-1">Manifest preview</div>
+    <div class="mb-3">
+      <div class="text-xs font-medium mb-1">Manifest</div>
       <pre id="manifest-pre" class="text-xs"></pre>
     </div>
     <div class="mt-3">
@@ -83,12 +105,17 @@
   </div>
 
   <div class="mt-8 text-xs text-slate-500">
-    <p>This tool generates simulated traces based on statistical patterns from base collections. Use the zip for replay in your modeling tools.</p>
-    <p class="mt-1">See README for full instructions and how to run with Docker Compose.</p>
+    <p>Simulated traces based on statistical patterns from base collections. Output is in the standard format for replay.</p>
+    <p class="mt-1">Run with: docker compose up (see README).</p>
   </div>
-  <!-- UI for Tracerator -->
 
   <script>
+    const baseStats = {
+      conversation: { n: 12031, dur: 3537, burst: 28, share: 0.40 },
+      toolagent: { n: 23608, dur: 3537, burst: 47, share: 0.60 },
+      synthetic: { n: 3993, dur: 1022, burst: 2, share: 0.42 }
+    };
+
     function updateLabels() {
       document.getElementById('scale-val').textContent = parseFloat(document.getElementById('scale').value).toFixed(1);
       document.getElementById('input-val').textContent = parseFloat(document.getElementById('input').value).toFixed(1);
@@ -96,16 +123,38 @@
       document.getElementById('reuse-val').textContent = parseFloat(document.getElementById('reuse').value).toFixed(2);
       document.getElementById('sessions-val').textContent = document.getElementById('sessions').value;
       document.getElementById('mix-val').textContent = parseFloat(document.getElementById('mix').value).toFixed(2);
+      updatePreview();
     }
 
-    ['scale','input','output','reuse','sessions','mix'].forEach(id => {
+    function updatePreview() {
+      const base = document.getElementById('base').value;
+      const stats = baseStats[base] || baseStats.conversation;
+      const s = parseFloat(document.getElementById('scale').value);
+      const i = parseFloat(document.getElementById('input').value);
+      const o = parseFloat(document.getElementById('output').value);
+      const r = parseFloat(document.getElementById('reuse').value);
+      const sess = parseInt(document.getElementById('sessions').value);
+      const m = parseFloat(document.getElementById('mix').value);
+
+      const total = Math.round(stats.n * s * (1 + m) + sess * 3);
+      const durH = (stats.dur * s / 3600).toFixed(1);
+      const hit = Math.round(Math.min(82, (stats.share * 100) + (r - 0.5) * 40));
+      const mb = Math.round(stats.burst * Math.min(1.5, s * 0.6 + 0.4));
+
+      document.getElementById('out-reqs').textContent = total.toLocaleString();
+      document.getElementById('out-dur').textContent = `~${durH}h`;
+      document.getElementById('out-hit').textContent = hit + '%';
+      document.getElementById('out-burst').textContent = '~' + mb;
+    }
+
+    ['scale','input','output','reuse','sessions','mix','base'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.addEventListener('input', updateLabels);
     });
-    updateLabels();
+    document.getElementById('seed').addEventListener('input', updateLabels);
 
-    async function doGenerate(download = true) {
-      const params = {
+    function getParams() {
+      return {
         base: document.getElementById('base').value,
         scale: parseFloat(document.getElementById('scale').value),
         input_mult: parseFloat(document.getElementById('input').value),
@@ -115,18 +164,19 @@
         modeled_mix: parseFloat(document.getElementById('mix').value),
         seed: parseInt(document.getElementById('seed').value) || 42
       };
+    }
 
+    async function doGenerate(download = true) {
+      const params = getParams();
       const res = await fetch('/generate', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(params)
       });
-
       if (!res.ok) {
         alert('Generation failed');
         return;
       }
-
       const blob = await res.blob();
       if (download) {
         const url = URL.createObjectURL(blob);
@@ -142,28 +192,16 @@
     }
 
     async function doPreview() {
-      const params = {
-        base: document.getElementById('base').value,
-        scale: parseFloat(document.getElementById('scale').value),
-        input_mult: parseFloat(document.getElementById('input').value),
-        output_mult: parseFloat(document.getElementById('output').value),
-        reuse_bias: parseFloat(document.getElementById('reuse').value),
-        new_sessions: parseInt(document.getElementById('sessions').value),
-        modeled_mix: parseFloat(document.getElementById('mix').value),
-        seed: parseInt(document.getElementById('seed').value) || 42
-      };
-
+      const params = getParams();
       const res = await fetch('/manifest', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(params)
       });
-
       if (!res.ok) {
         alert('Preview failed');
         return;
       }
-
       const data = await res.json();
       document.getElementById('manifest-pre').textContent = JSON.stringify(data.manifest, null, 2);
       document.getElementById('sample-pre').textContent = data.sample_trace;
@@ -177,7 +215,9 @@
 
     document.getElementById('preview-btn').addEventListener('click', doPreview);
 
+    // init
     document.getElementById('results').classList.add('hidden');
+    updateLabels();
   </script>
 </body>
 </html>
