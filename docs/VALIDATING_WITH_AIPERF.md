@@ -125,6 +125,8 @@ aiperf plot
 aiperf plot --dashboard
 ```
 
+**Note on plot errors:** The dashboard may show errors for "timeslices" (needs `--slice-duration` during profile) or GPU telemetry (needs DCGM on NVIDIA hardware). These are expected on MacBooks or basic runs. Core metrics and many plots will still work. Use `--slice-duration 10` in future replays for richer time-based analysis.
+
 ## Working with the Example Traces in This Repo
 
 | Trace | Location | Lines | Notes | Good for |
@@ -202,6 +204,9 @@ needed = blocks_for_length(63532)                      # -> 125
 - **Long context / context window exceeded** — Real traces have heavy tails (many > 8k–30k+ tokens). Use tiny subsets for smoke tests, or a model with sufficient context. Some AIPerf versions support synthesis filters like `--synthesis-max-isl`.
 - **Tokenizer errors** — Provide the correct Hugging Face tokenizer repo ID (not the Ollama tag). Fall back with `--use-server-token-count`.
 - **Slow runs** — Never run full 12k–23k line traces with fixed schedule for initial validation. `--subset 20-100` is usually enough to prove the structure works.
+- **aiperf plot --dashboard errors about "timeslices" or "no timeslice data"** — You didn't pass `--slice-duration` during the profile run. Rerun with `--slice-duration 10` (or 30). The validator script now supports `--slice-duration N` directly.
+- **GPU telemetry / DCGM errors in plots** — These require NVIDIA DCGM to be running and `--server-metrics` (or equivalent) during the benchmark. Not available on non-NVIDIA hardware (e.g. Apple Silicon MacBook) or without DCGM configured. This is expected and harmless on Mac; basic plots (TTFT, throughput, etc.) will still generate. The validation itself succeeded independently of plots.
+- **Running on MacBook / non-NVIDIA** — Expect some advanced plots (GPU util, certain telemetry) to be unavailable. The core trace replay and basic metrics are still fully functional. Use the toolkit's vllm-metal path for the server side.
 - **Python version issues with AIPerf** — The toolkit's setup scripts avoid 3.14+ (known cyclopts/ForwardRef problems). Use the venvs they create.
 - **macOS specifics** — Use the toolkit's `macos-aiperf-full-setup.sh --with-vllm` path for good vLLM-metal support.
 

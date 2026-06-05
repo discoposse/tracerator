@@ -52,6 +52,7 @@ FIXED_SCHEDULE=true                 # --fixed-schedule honors trace timestamps (
 QUICK_MODE=false
 VERBOSE=false
 NORMALIZE=false
+SLICE_DURATION=""
 
 ENGINE="${ENGINE:-vllm}"            # ollama | vllm  (affects default URL + health checks)
 MODEL="${MODEL:-}"                  # will be set based on engine if empty
@@ -239,6 +240,10 @@ while [[ $# -gt 0 ]]; do
             NORMALIZE=true
             shift
             ;;
+        --slice-duration)
+            SLICE_DURATION="$2"
+            shift 2
+            ;;
         -h|--help)
             cat <<EOF
 Usage: $SCRIPT_NAME [options]
@@ -259,6 +264,8 @@ Options:
   --url <base-url>          Override server base URL (e.g. http://localhost:8000 or http://localhost:11434).
   --normalize               Run the trace through normalize_trace_for_aiperf first (fixes legacy traces that have len(hash_ids) != ceil(input_length/512)).
                             Writes a sibling .normalized.jsonl and uses that for the run.
+  --slice-duration N      Pass --slice-duration N to aiperf profile. Enables time-sliced plots (timeslices_ttft, etc.) in aiperf plot --dashboard.
+                            Recommended for detailed analysis (e.g. 10 or 30). Without it, some dashboard plots will error (expected on non-NVIDIA or basic runs).
 
 Environment variables (all overridable):
   TRACE_FILE=...            Path to the .jsonl to validate (default: small demo example)
@@ -271,7 +278,10 @@ Examples:
   ./scripts/validate-with-aiperf.sh
   ./scripts/validate-with-aiperf.sh --with-replay --subset 30
   TRACE_FILE=Mooncake/arxiv-trace/mooncake_trace.jsonl SUBSET_N=100 \\
-      ./scripts/validate-with-aiperf.sh --with-replay --engine vllm --fixed-schedule
+      ./scripts/validate-with-aiperf.sh --with-replay --engine vllm --fixed-schedule --slice-duration 10
+
+  # With time-slicing for richer aiperf plot --dashboard output (recommended for analysis)
+  ./scripts/validate-with-aiperf.sh --with-replay --subset 50 --slice-duration 10
 
   # Using a generated artifact + your aiperf-toolkit venv
   TRACE_FILE=~/Downloads/extended_conversation_x1.5_s42/trace.jsonl \\
@@ -460,6 +470,9 @@ main() {
             --custom-dataset-type mooncake_trace
             --tokenizer "$TOKENIZER"
         )
+        if [[ -n "$SLICE_DURATION" ]]; then
+            replay_cmd+=(--slice-duration "$SLICE_DURATION")
+        fi
         if $FIXED_SCHEDULE; then
             replay_cmd+=(--fixed-schedule)
         else
@@ -565,9 +578,12 @@ main() {
         echo "• Compare aiperf analyze output + manifest.json against your expectations."
         echo "• Use --fixed-schedule (default) to validate bursty timing and arrival patterns."
         echo "• Use --no-fixed-schedule + --concurrency to test the same workload mix at max server capacity."
+        echo "• Add --slice-duration 10 (or 30) during replay to enable time-sliced plots in 'aiperf plot --dashboard'."
         echo "• Real production traces (12k–23k lines) need --subset or they will take forever + hit context limits."
         echo "• The hash_ids in the trace drive realistic prefix-cache hit simulation inside AIPerf."
         echo "• After a replay run: aiperf plot   (or aiperf plot --dashboard)"
+        echo "  (For time-sliced plots, rerun with --slice-duration 10 or 30. GPU plots require NVIDIA DCGM.)"
+        echo "  On Mac/non-NVIDIA: timeslice and GPU telemetry errors are expected and harmless (your validation passed independently)."
         echo "• See AIPerf docs: trace-replay-with-mooncake-traces"
         echo "• Full instruction set (canonical): docs/VALIDATING_WITH_AIPERF.md (in this repo)"
         echo "• Complete local AIPerf + vLLM/Ollama/LMCache stack: https://github.com/discoposse/aiperf-toolkit"
