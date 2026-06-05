@@ -138,6 +138,9 @@ This is a lightweight simulation (randomized from base stats). For real producti
 traces with authentic burstiness and prefix distributions, use the full Mooncake trace tools.
 
 See the main project README for parameter contract and background.
+
+Tip: Use the project's ./run_trace_ui.sh launcher — it has a pre-flight that ensures
+jq (and other utilities) are available and can auto-install them on common platforms.
 """
         zf.writestr('README.txt', readme)
     zip_buffer.seek(0)

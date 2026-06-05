@@ -16,11 +16,15 @@ Generic generators (independent requests, uniform or simple normal lengths, Pois
 
 The tool is called Tracerator. The graphical UI is the self-contained fancy page at site/index.html (with live estimates that update dynamically as you adjust the sliders).
 
-To run:
+To run (recommended):
 
 ```bash
-docker compose up -d
+./run_trace_ui.sh
 ```
+
+(or manually `docker compose up -d`)
+
+The launcher includes a pre-flight that checks for Docker and installs `jq` (highly recommended for inspecting the generated `trace.jsonl` files — every zip now contains a `README.txt` with usage examples).
 
 Open http://localhost:8000 in your browser.
 
