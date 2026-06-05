@@ -97,6 +97,49 @@ def generate():
         zf.writestr('trace.jsonl', trace_content + '\n')
         # manifest.json
         zf.writestr('manifest.json', json.dumps(manifest, indent=2))
+        # README for users who try to "open" the files
+        readme = """Tracerator generated output (demo / simulated traces)
+
+This zip was produced by the Tracerator containerized demo.
+
+Files:
+- trace.jsonl   JSON Lines (one compact JSON object per line / request).
+                Fields: timestamp (ms), input_length, output_length, hash_ids (list of ints)
+                The hash_ids simulate KVCache prefix block sharing for cache-hit modeling.
+
+- manifest.json Exact input params + output aggregates (n_requests, approx_cache_hit_ratio,
+                unique_block_ids, max_concurrency, seed, etc.). Always keep this alongside
+                the trace for full reproducibility and traceability.
+
+- README.txt    This file.
+
+IMPORTANT:
+trace.jsonl is often large (tens of MB for realistic scales). It is NOT a single JSON document
+and is NOT intended to be double-clicked in TextEdit, Preview, or most GUI "JSON viewers".
+
+Recommended ways to inspect or use:
+  head -n 5 trace.jsonl | jq .                 # first few, pretty-printed (requires jq)
+  wc -l trace.jsonl                            # request count
+
+  # Python / pandas (best for analysis and modeling pipelines)
+  import pandas as pd
+  df = pd.read_json("trace.jsonl", lines=True)
+  print(df.head())
+  print("requests:", len(df))
+
+  # Or stream line-by-line for very large traces (no full load in memory)
+  import json
+  with open("trace.jsonl") as f:
+      for line in f:
+          req = json.loads(line)
+          # ... your processing / replay logic ...
+
+This is a lightweight simulation (randomized from base stats). For real production-derived
+traces with authentic burstiness and prefix distributions, use the full Mooncake trace tools.
+
+See the main project README for parameter contract and background.
+"""
+        zf.writestr('README.txt', readme)
     zip_buffer.seek(0)
 
     return send_file(

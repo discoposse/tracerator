@@ -156,13 +156,20 @@
           <div class="text-[10px] text-slate-400 mt-1">Max concurrent in-flight (scaled)</div>
         </div>
       </div>
+
+      <!-- Size warning (helps users avoid "unable to open" surprises on large JSONL) -->
+      <div class="mt-2 text-[10px] text-slate-500">
+        Est. zip size ≈ <span id="out-size" class="font-mono font-semibold text-slate-700">12</span> MB.
+        trace.jsonl is JSON Lines (one record per line). Files &gt;10–20 MB are normal at higher scales — most GUI editors (TextEdit, basic JSON viewers) will fail or hang.
+        Use <span class="font-mono">head</span>, <span class="font-mono">jq</span>, pandas <span class="font-mono">read_json(..., lines=True)</span>, or VS Code. The generated zip now includes a README.txt with examples.
+      </div>
     </div>
 
     <!-- Actions -->
     <div class="flex flex-wrap items-center gap-3">
       <button onclick="generateTrace()" class="px-6 py-2.5 bg-slate-900 hover:bg-black active:bg-slate-950 text-white text-sm font-medium rounded-xl transition">Generate &amp; download zip</button>
       <button onclick="previewManifest()" class="px-5 py-2.5 border border-slate-300 hover:bg-white active:bg-slate-50 text-sm font-medium rounded-xl transition">Preview manifest + sample</button>
-      <span class="text-xs text-slate-400 ml-2">zip contains <span class="font-mono">trace.jsonl</span> + <span class="font-mono">manifest.json</span></span>
+      <span class="text-xs text-slate-400 ml-2">zip contains <span class="font-mono">trace.jsonl</span> + <span class="font-mono">manifest.json</span> + <span class="font-mono">README.txt</span></span>
     </div>
 
     <!-- Results / Preview -->
@@ -181,7 +188,7 @@
           <pre id="sample-pre" class="bg-slate-900 text-slate-100 p-3 rounded-lg overflow-auto max-h-72 text-[10px] leading-tight"></pre>
         </div>
       </div>
-      <div class="mt-3 text-[10px] text-slate-400">Use the zip for your modeling / replay pipeline. The manifest records the exact parameters and derived stats.</div>
+      <div class="mt-3 text-[10px] text-slate-400">Use the zip for your modeling / replay pipeline. The manifest records the exact parameters and derived stats. <strong>trace.jsonl is JSON Lines (large files are normal)</strong> — open with code (pandas.read_json(..., lines=True), jq, head) or a real editor. GUI text editors usually cannot open multi-MB JSONL files.</div>
     </div>
 
     <div class="mt-8 text-xs text-slate-400">
@@ -255,6 +262,15 @@
       document.getElementById('out-dur').textContent = estDurS + 's';
       document.getElementById('out-hit').textContent = (estHit * 100).toFixed(0) + '%';
       document.getElementById('out-burst').textContent = estBurst;
+
+      // Rough output size estimate so users see before hitting Generate (prevents "unable to open large JSONL" surprises)
+      const inMed = (currentBase === 'conversation' ? 6909 : currentBase === 'toolagent' ? 6346 : 11587);
+      const avgBlocks = Math.max(2, Math.round(inMed * inM / 500));
+      const bytesPerReq = 120 + Math.round(avgBlocks * 6.5);  // json overhead + hash ids (compact)
+      const estBytes = estReqs * bytesPerReq;
+      const estMB = (estBytes / 1024 / 1024).toFixed(1);
+      const sizeEl = document.getElementById('out-size');
+      if (sizeEl) sizeEl.textContent = '~' + estMB;
     }
 
     function updateAll() {
