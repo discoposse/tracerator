@@ -160,6 +160,10 @@ VALIDATING WITH AIPERF (recommended for perf handoff)
 These trace.jsonl files use the Mooncake format and are natively supported by
 NVIDIA AIPerf via --custom-dataset-type mooncake_trace.
 
+**Canonical full instructions:**
+See docs/VALIDATING_WITH_AIPERF.md in this repository (the complete step-by-step guide).
+
+Quick start:
 1. Static validation (no server needed):
    aiperf analyze-trace trace.jsonl --output-file analysis.json --block-size 512
 
@@ -176,15 +180,15 @@ NVIDIA AIPerf via --custom-dataset-type mooncake_trace.
      --tokenizer Qwen/Qwen3-0.6B
 
    --fixed-schedule replays the exact timestamps (bursty arrivals).
-   Omit it (or use --no-fixed-schedule) to drive the server as fast as possible
-   with the same request mix.
+   Omit it (or use --no-fixed-schedule --concurrency N) to drive the server
+   as fast as possible with the same request mix.
 
-For the best local experience (Ollama/vLLM + AIPerf setup + validation scripts)
-see the aiperf-toolkit: https://github.com/discoposse/aiperf-toolkit
+**Best local experience (Ollama/vLLM + AIPerf + LMCache setup + validation scripts):**
+https://github.com/discoposse/aiperf-toolkit
 
 In this repo:
 - Full instruction set (canonical guide): docs/VALIDATING_WITH_AIPERF.md
-- Convenience wrapper:
+- Convenience wrapper (recommended):
    ./scripts/validate-with-aiperf.sh --with-replay --subset 30
    (It wraps analyze + replay with preflights, subsetting, reports, and manifest cross-checks.
     Uses the small demo example by default; point at your generated trace with TRACE_FILE=...)

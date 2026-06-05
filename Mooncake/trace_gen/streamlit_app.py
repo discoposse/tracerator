@@ -352,8 +352,13 @@ For convenient local validation (with reports, subsets, manifest checks):
   ./scripts/validate-with-aiperf.sh --with-replay --subset 50
   TRACE_FILE=your_trace.jsonl ./scripts/validate-with-aiperf.sh --with-replay
 
-Full instruction set: docs/VALIDATING_WITH_AIPERF.md in the repo.
-See also repo README + https://github.com/discoposse/aiperf-toolkit for full stack.
+**Full canonical instruction set** (strongly recommended):
+docs/VALIDATING_WITH_AIPERF.md in the repo root.
+
+**Best way to get a complete local AIPerf + vLLM/Ollama + LMCache stack** (including setup scripts for macOS/Linux):
+https://github.com/discoposse/aiperf-toolkit
+
+See also the repo root README and Mooncake/trace_gen/README.md.
 """)
     zbuf.seek(0)
     st.download_button(

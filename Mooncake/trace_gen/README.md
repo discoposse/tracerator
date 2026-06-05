@@ -110,8 +110,11 @@ See the script `--help` for all options (engine, model, tokenizer, url overrides
 
 ### Related tooling
 
-For complete local Ollama / vLLM + AIPerf setup + validation scripts on macOS/Linux, see the companion project:
-https://github.com/discoposse/aiperf-toolkit
+- **Complete local AIPerf + vLLM/Ollama + LMCache stack** (recommended setup scripts for macOS, Linux, validation helpers):
+  https://github.com/discoposse/aiperf-toolkit
+
+- Official AIPerf Mooncake trace replay documentation:
+  https://docs.nvidia.com/aiperf/benchmark-modes/trace-replay-with-mooncake-traces
 
 ## License
 

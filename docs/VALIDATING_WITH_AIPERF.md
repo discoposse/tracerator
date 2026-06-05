@@ -1,5 +1,10 @@
 # Validating Tracerator Outputs with AIPerf
 
+> **Quick links**
+> - Full local setup (AIPerf + vLLM/Ollama + validation scripts): https://github.com/discoposse/aiperf-toolkit
+> - This instruction set in the repo: `docs/VALIDATING_WITH_AIPERF.md`
+> - Convenience script: `scripts/validate-with-aiperf.sh --help`
+
 This document is the canonical **instruction set** for validating that `trace.jsonl` files produced by Tracerator (the Mooncake trace generator) actually "play out" correctly when consumed by real performance tooling.
 
 The primary tool for this is **NVIDIA AIPerf** (`aiperf`), which has first-class native support for the exact schema Tracerator emits:
@@ -20,8 +25,8 @@ Tracerator's value is preserving the real statistical structure from production 
 ## Prerequisites
 
 1. **AIPerf installed**
-   - Recommended: Use the companion [aiperf-toolkit](https://github.com/discoposse/aiperf-toolkit) (the same one the author maintains).
-   - It handles venvs (`~/venv`), platform differences (macOS, Linux), vLLM-metal, LMCache, etc.
+   - **Recommended**: Use the companion [aiperf-toolkit](https://github.com/discoposse/aiperf-toolkit) (maintained by the same author as this project).
+     It provides setup scripts, correct venvs (`~/venv` for AIPerf, `~/.venv-vllm-metal` for vLLM on Apple Silicon), LMCache support, and validation helpers for macOS and Linux.
    - Manual: `python3 -m venv ~/venv && ~/venv/bin/pip install aiperf`
 
 2. **A running inference server** (for replay, not required for static analysis)

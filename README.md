@@ -106,7 +106,13 @@ The hash_ids are remapped block hashes. Matching prefixes across requests = KVCa
      ./scripts/validate-with-aiperf.sh --with-replay --subset 50
      TRACE_FILE=your/trace.jsonl ./scripts/validate-with-aiperf.sh --with-replay
      ```
-   See the full **instruction set**: [docs/VALIDATING_WITH_AIPERF.md](docs/VALIDATING_WITH_AIPERF.md), plus [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md) and the companion [aiperf-toolkit](https://github.com/discoposse/aiperf-toolkit).
+   See the full **instruction set** (canonical guide):
+   [docs/VALIDATING_WITH_AIPERF.md](docs/VALIDATING_WITH_AIPERF.md)
+
+   For a complete local stack (AIPerf + vLLM/Ollama setup scripts, validation helpers, LMCache support on macOS/Linux):
+   https://github.com/discoposse/aiperf-toolkit
+
+   Also see [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md).
 4. The receiving team can replay with the original Mooncake simulator, AIPerf (trace replay mode), or their modeling tool, knowing the workload characteristics and how they were derived from real traffic.
 
 ## References

@@ -15,6 +15,9 @@
 # (in the repo root). Read that first for context, manual commands, result interpretation,
 # and handoff workflows.
 #
+# Companion toolkit (full local AIPerf + vLLM/Ollama/LMCache setup scripts for macOS/Linux):
+# https://github.com/discoposse/aiperf-toolkit
+#
 # Usage (from repo root):
 #   ./scripts/validate-with-aiperf.sh
 #   ./scripts/validate-with-aiperf.sh --with-replay
@@ -275,8 +278,9 @@ Examples:
       VENV_DIR=~/venv ./scripts/validate-with-aiperf.sh --with-replay
 
 See also:
-  - docs/VALIDATING_WITH_AIPERF.md in this repo (the canonical instruction set)
-  - the aiperf-toolkit (https://github.com/discoposse/aiperf-toolkit) for full stack setup.
+  - docs/VALIDATING_WITH_AIPERF.md in this repo (the canonical, complete instruction set)
+  - https://github.com/discoposse/aiperf-toolkit (best way to get AIPerf + vLLM/Ollama/LMCache working locally on macOS or Linux, with matching venvs and setup scripts)
+  - Official AIPerf docs: https://docs.nvidia.com/aiperf/benchmark-modes/trace-replay-with-mooncake-traces
 EOF
             exit 0
             ;;
@@ -565,8 +569,8 @@ main() {
         echo "• The hash_ids in the trace drive realistic prefix-cache hit simulation inside AIPerf."
         echo "• After a replay run: aiperf plot   (or aiperf plot --dashboard)"
         echo "• See AIPerf docs: trace-replay-with-mooncake-traces"
-        echo "• For the full instruction set: docs/VALIDATING_WITH_AIPERF.md (in this repo)"
-        echo "• For full local stack (Ollama/vLLM + aiperf): https://github.com/discoposse/aiperf-toolkit"
+        echo "• Full instruction set (canonical): docs/VALIDATING_WITH_AIPERF.md (in this repo)"
+        echo "• Complete local AIPerf + vLLM/Ollama/LMCache stack: https://github.com/discoposse/aiperf-toolkit"
         echo ""
         echo "=== END OF REPORT ==="
     } | tee "$report_file"
