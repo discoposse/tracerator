@@ -93,7 +93,21 @@ The hash_ids are remapped block hashes. Matching prefixes across requests = KVCa
 
 1. Use the UI to produce the desired variant(s) + manifest(s).
 2. The zip contains the trace.jsonl and manifest.json. The manifest records the exact base, all parameters, and output aggregate stats so the modeling run is fully traceable and reproducible.
-3. The receiving team can replay with the original Mooncake simulator or their modeling tool, knowing the workload characteristics and how they were derived from real traffic.
+3. **Validate the trace with AIPerf** (strongly recommended before or as part of perf modeling):
+   - Static: `aiperf analyze-trace trace.jsonl --output-file analysis.json`
+   - Full replay (exact timing + realistic KV prefix behavior via hash_ids):
+     ```bash
+     aiperf profile --model <model> --endpoint-type chat --streaming \
+       --url http://... --input-file trace.jsonl \
+       --custom-dataset-type mooncake_trace --fixed-schedule --tokenizer <hf-id>
+     ```
+   - Or use the convenience script in this repo:
+     ```bash
+     ./scripts/validate-with-aiperf.sh --with-replay --subset 50
+     TRACE_FILE=your/trace.jsonl ./scripts/validate-with-aiperf.sh --with-replay
+     ```
+   See the full **instruction set**: [docs/VALIDATING_WITH_AIPERF.md](docs/VALIDATING_WITH_AIPERF.md), plus [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md) and the companion [aiperf-toolkit](https://github.com/discoposse/aiperf-toolkit).
+4. The receiving team can replay with the original Mooncake simulator, AIPerf (trace replay mode), or their modeling tool, knowing the workload characteristics and how they were derived from real traffic.
 
 ## References
 

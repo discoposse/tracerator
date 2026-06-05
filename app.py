@@ -48,8 +48,11 @@ def generate_trace_data(params):
         in_len = max(100, int(base['in_med'] * input_mult * random.uniform(0.8, 1.2)))
         out_len = max(1, int(base['out_med'] * output_mult * random.uniform(0.5, 2.0)))
 
-        # hash_ids: simulate sharing
-        num_blocks = max(2, int(in_len / 500))
+        # hash_ids: simulate sharing, but *must* satisfy AIPerf mooncake_trace rule:
+        #   len(hash_ids) == ceil(input_length / 512)
+        # (See docs/VALIDATING_WITH_AIPERF.md and normalize_trace_for_aiperf)
+        # We use 512 (not 500) and compute exactly from the final in_len.
+        num_blocks = max(1, (in_len + 511) // 512)  # equivalent to math.ceil(in_len / 512)
         h = []
         if random.random() < reuse_bias:
             # reuse some hot
@@ -62,7 +65,7 @@ def generate_trace_data(params):
             "timestamp": ts,
             "input_length": in_len,
             "output_length": out_len,
-            "hash_ids": sorted(h)[:num_blocks]  # limit
+            "hash_ids": sorted(h)[:num_blocks]
         })
 
     # Compute some stats
@@ -75,8 +78,18 @@ def generate_trace_data(params):
         "unique_block_ids": unique_h,
         "max_concurrency": base['burst'],
         "seed": seed,
-        "note": "Simulated from base patterns. Real generator would load full base trace data and remap hashes precisely."
+        "note": "Simulated from base patterns (demo). hash_ids length is now strictly ceil(input_length/512) for AIPerf mooncake_trace compatibility. For production fidelity use Mooncake/trace_gen/."
     }
+
+    # Extra belt-and-suspenders: enforce the rule on the final list
+    # (the per-record logic above should already be correct, but this matches the real generator's normalize_trace_for_aiperf)
+    BLOCK = 512
+    for r in reqs:
+        il = r["input_length"]
+        needed = max(1, (il + BLOCK - 1) // BLOCK)
+        if len(r["hash_ids"]) != needed:
+            r["hash_ids"] = r["hash_ids"][:needed]
+            # If somehow short (won't be), pad would go here
 
     return reqs, manifest
 
@@ -141,6 +154,40 @@ See the main project README for parameter contract and background.
 
 Tip: Use the project's ./run_trace_ui.sh launcher — it has a pre-flight that ensures
 jq (and other utilities) are available and can auto-install them on common platforms.
+
+VALIDATING WITH AIPERF (recommended for perf handoff)
+----------------------------------------------------
+These trace.jsonl files use the Mooncake format and are natively supported by
+NVIDIA AIPerf via --custom-dataset-type mooncake_trace.
+
+1. Static validation (no server needed):
+   aiperf analyze-trace trace.jsonl --output-file analysis.json --block-size 512
+
+2. Full "play out" replay (validates bursts + hash_id KV cache behavior):
+   # Start a server first (example)
+   # vllm serve Qwen/Qwen3-0.6B --port 8000
+   aiperf profile \\
+     --model Qwen/Qwen3-0.6B \\
+     --endpoint-type chat --streaming \\
+     --url http://localhost:8000 \\
+     --input-file trace.jsonl \\
+     --custom-dataset-type mooncake_trace \\
+     --fixed-schedule \\
+     --tokenizer Qwen/Qwen3-0.6B
+
+   --fixed-schedule replays the exact timestamps (bursty arrivals).
+   Omit it (or use --no-fixed-schedule) to drive the server as fast as possible
+   with the same request mix.
+
+For the best local experience (Ollama/vLLM + AIPerf setup + validation scripts)
+see the aiperf-toolkit: https://github.com/discoposse/aiperf-toolkit
+
+In this repo:
+- Full instruction set (canonical guide): docs/VALIDATING_WITH_AIPERF.md
+- Convenience wrapper:
+   ./scripts/validate-with-aiperf.sh --with-replay --subset 30
+   (It wraps analyze + replay with preflights, subsetting, reports, and manifest cross-checks.
+    Uses the small demo example by default; point at your generated trace with TRACE_FILE=...)
 """
         zf.writestr('README.txt', readme)
     zip_buffer.seek(0)

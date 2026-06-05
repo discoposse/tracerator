@@ -47,7 +47,8 @@ import sys
 sys.path.insert(0, os.path.dirname(__file__))
 from generator import (
     load_trace, analyze_trace, generate_extended, TraceAnalysis,
-    BUILTIN_TRACES, load_builtin, save_trace, save_manifest
+    BUILTIN_TRACES, load_builtin, save_trace, save_manifest,
+    validate_hash_block_consistency,
 )
 
 st.set_page_config(page_title="Realistic LLM Trace Extender", layout="wide", page_icon="📈")
@@ -252,6 +253,9 @@ if st.button("🚀 Generate Extended Trace + Manifest", type="primary", use_cont
             st.session_state["last_manifest"] = manifest
             st.session_state["last_label"] = base_label
             st.success(f"Generated {manifest['output_stats']['n_requests']:,} requests in {manifest['output_stats']['duration_ms']/1000:.0f}s")
+            # Quick confirmation for AIPerf users (guaranteed by generator)
+            if not validate_hash_block_consistency(ext_reqs):
+                st.caption("✓ All records are AIPerf `mooncake_trace` compatible (len(hash_ids) == ceil(input_length/512))")
         except Exception as e:
             st.error(f"Generation failed: {e}")
             st.exception(e)
@@ -324,7 +328,33 @@ if "last_ext" in st.session_state and "last_manifest" in st.session_state:
     with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("trace.jsonl", buf.getvalue())
         zf.writestr("manifest.json", man_buf)
-        zf.writestr("README.txt", f"Generated from {display_label} using trace-gen.\nSee manifest for full params and stats.\n\n")
+        zf.writestr("README.txt", f"""Generated from {display_label} using trace-gen.
+See manifest for full params and stats.
+
+VALIDATING WITH AIPERF
+----------------------
+These traces are Mooncake-format and work directly with NVIDIA AIPerf:
+
+  aiperf analyze-trace trace.jsonl --output-file analysis.json --block-size 512
+
+  aiperf profile \\
+    --model <your-model> --endpoint-type chat --streaming \\
+    --url http://localhost:8000 \\
+    --input-file trace.jsonl \\
+    --custom-dataset-type mooncake_trace \\
+    --fixed-schedule \\
+    --tokenizer <hf-tokenizer>
+
+--fixed-schedule replays exact timestamps (bursts + timing fidelity).
+The hash_ids drive realistic KV-cache prefix hit simulation inside AIPerf.
+
+For convenient local validation (with reports, subsets, manifest checks):
+  ./scripts/validate-with-aiperf.sh --with-replay --subset 50
+  TRACE_FILE=your_trace.jsonl ./scripts/validate-with-aiperf.sh --with-replay
+
+Full instruction set: docs/VALIDATING_WITH_AIPERF.md in the repo.
+See also repo README + https://github.com/discoposse/aiperf-toolkit for full stack.
+""")
     zbuf.seek(0)
     st.download_button(
         "⬇️ Download both as .zip (recommended for handoff)",
@@ -334,7 +364,7 @@ if "last_ext" in st.session_state and "last_manifest" in st.session_state:
         use_container_width=True
     )
 
-    st.info("Hand the .zip (or the two files) to the perf team. The manifest lets them know exactly which real workload, what parameters were applied, and the resulting aggregate characteristics. The hash_id sharing patterns are authentic to enterprise traffic.")
+    st.info("Hand the .zip (or the two files) to the perf team. The manifest + AIPerf validation (analyze-trace + mooncake_trace replay) confirm the trace plays out correctly with real burst + prefix-cache behavior. See the README.txt inside the zip for exact aiperf commands.")
 
     # Optional: re-analyze the output quickly for validation
     if st.checkbox("Re-analyze generated (compute full hit ratio etc, may be slow on very large)"):

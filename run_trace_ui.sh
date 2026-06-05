@@ -67,3 +67,9 @@ else
 fi
 
 echo "Open http://localhost:8000 for the UI."
+echo ""
+echo "After generating traces, validate them with AIPerf (exact timing + KV prefix behavior):"
+echo "  ./scripts/validate-with-aiperf.sh --analyze-only"
+echo "  ./scripts/validate-with-aiperf.sh --with-replay --subset 30"
+echo "See the full instruction set: docs/VALIDATING_WITH_AIPERF.md"
+echo "Also: scripts/validate-with-aiperf.sh --help and Mooncake/trace_gen/README.md"

@@ -262,3 +262,12 @@ testout/
 # Large trace files if regenerated locally (the committed ones in Mooncake/ are the canonical small set)
 # Uncomment if you want to ignore all .jsonl except the originals
 # Mooncake/trace_gen/examples/*.jsonl
+
+# AIPerf validation / benchmarking artifacts (when running from this dir)
+artifacts/
+profile_export*.jsonl
+profile_export*.csv
+profile_export*.json
+tracerator-aiperf-validate-*.txt
+tracerator-aiperf-validate-analysis-*.json
+/tmp/tracerator-validate-subset-*.jsonl

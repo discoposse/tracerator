@@ -32,10 +32,18 @@ random hash_ids). The value comes from preserving real patterns.
 import json
 import math
 import random
+import sys
 from collections import defaultdict, Counter
 from dataclasses import dataclass, asdict
 from typing import Any, Dict, List, Tuple, Optional, Sequence
 import statistics as stats
+
+# KV block size used by Mooncake / AIPerf mooncake_trace loader.
+# Each hash_id represents one 512-token block of the input/prompt.
+# The rule: for a record with IL = input_length and N = len(hash_ids),
+# final_block_size = IL - (N-1)*512 must satisfy 0 < final_block_size <= 512,
+# i.e. N must be exactly ceil(IL / 512).
+BLOCK_SIZE = 512
 
 # Safe offset larger than any seen hash ids (~183k)
 HASH_ID_OFFSET = 1_000_000
@@ -73,6 +81,64 @@ class TraceAnalysis:
         return (f"{self.name}: {self.n_reqs} reqs, {self.duration_ms/1000:.0f}s, "
                 f"RPS~{self.avg_rps:.1f}, bursts up to {max(self.burst_sizes)}, "
                 f"hot_prefixes={len(self.hot_prefixes)}, hit_ratio~{self.approx_cache_hit_ratio*100:.0f}%")
+
+def blocks_for_length(length: int, block_size: int = BLOCK_SIZE) -> int:
+    """Return the exact number of 512-token blocks required for this input length."""
+    if length <= 0:
+        return 1
+    return math.ceil(length / block_size)
+
+def normalize_trace_for_aiperf(reqs: List[Dict[str, Any]], block_size: int = BLOCK_SIZE) -> List[Dict[str, Any]]:
+    """
+    Ensure every record satisfies AIPerf's mooncake_trace requirement:
+        0 < input_length - (len(hash_ids)-1)*block_size <= block_size
+
+    I.e. len(hash_ids) == blocks_for_length(input_length)
+
+    Strategy (matching perf-team recommendation):
+      - Truncate excess hash_ids (drops the request-specific tail blocks).
+      - This preserves shared prefixes (which sit at the front) and keeps
+        the reported input_length (ISL) exactly as the generator intended.
+      - If under-count (defensive), pad with fresh high ids.
+
+    Returns a *new* list of records; the input list and original dicts are untouched.
+    Use this on any generated trace before handing to AIPerf, or call it internally
+    at the end of generation so all outputs are clean by default.
+    """
+    out = []
+    for r in reqs:
+        rec = dict(r)  # shallow copy is enough; we replace the list
+        il = int(rec.get("input_length", 0))
+        h = list(rec.get("hash_ids", []))
+        needed = blocks_for_length(il, block_size)
+        if len(h) > needed:
+            h = h[:needed]
+        elif len(h) < needed:
+            # Pad defensively (should be rare if generation is consistent)
+            base = max(h) + 1 if h else HASH_ID_OFFSET
+            for i in range(len(h), needed):
+                h.append(base + i)
+        rec["hash_ids"] = h
+        out.append(rec)
+    return out
+
+def validate_hash_block_consistency(reqs: List[Dict[str, Any]], block_size: int = BLOCK_SIZE) -> List[str]:
+    """Return list of human-readable violations (empty list = all good)."""
+    errs = []
+    for i, r in enumerate(reqs):
+        il = int(r.get("input_length", 0))
+        h = r.get("hash_ids", [])
+        n = len(h)
+        if n < 1:
+            errs.append(f"record[{i}]: no hash_ids (input_length={il})")
+            continue
+        final = il - (n - 1) * block_size
+        if not (0 < final <= block_size):
+            errs.append(
+                f"record[{i}]: input_length={il}, len(hash_ids)={n} "
+                f"-> final_block={final} (must be 1..{block_size})"
+            )
+    return errs
 
 
 def load_trace(path: str) -> List[Dict[str, Any]]:
@@ -299,13 +365,23 @@ def _make_burst_template(reqs_at_ts: List[Dict], analysis: TraceAnalysis,
         # remap every id consistently for this copy
         remapped = [_get_remapped(h, idmap, fresh) for h in orig_h]
 
-        # scale the tail: decide how many total blocks after remap
+        # scale the tail (honor input_mult on unique content), then *enforce*
+        # exact match to the chosen input_length using the 512-block rule.
+        # Truncation of excess tail is the faithful choice (perf team guidance):
+        # shared prefixes are at the front; we keep ISL exact.
         orig_blocks = len(orig_h)
-        tgt = max(2, int(orig_blocks * input_mult * (1 + rng.gauss(0, 0.05))))
-        if tgt < len(remapped):
-            remapped = remapped[:tgt]
+        desired = max(1, int(orig_blocks * input_mult * (1 + rng.gauss(0, 0.05))))
+        if desired < len(remapped):
+            remapped = remapped[:desired]
         else:
-            while len(remapped) < tgt:
+            while len(remapped) < desired:
+                remapped.append(fresh.next())
+
+        target_blocks = blocks_for_length(new_in)
+        if len(remapped) > target_blocks:
+            remapped = remapped[:target_blocks]
+        else:
+            while len(remapped) < target_blocks:
                 remapped.append(fresh.next())
 
         out.append({
@@ -415,7 +491,7 @@ def generate_extended(
             for bi in range(bsize):
                 inl = _resample_with_mult(analysis.input_lens, input_mult, rng)
                 outl = _resample_with_mult(analysis.output_lens, output_mult, rng)
-                blks = max(2, int(rng.choice(analysis.block_counts) * input_mult))
+                blks = blocks_for_length(inl)  # derive strictly from the chosen input_length
                 hlist = _generate_hash_list(analysis, blks, reuse_bias, fresh, rng)  # modeled new, not clone
                 generated.append({
                     "timestamp": base_t + bi * rng.randint(0, 3),
@@ -435,7 +511,7 @@ def generate_extended(
             for turn in range(chain_len):
                 inl = _resample_with_mult(analysis.input_lens, input_mult * (0.8 + 0.4*turn), rng)  # growing ctx
                 outl = _resample_with_mult(analysis.output_lens, output_mult, rng)
-                base_blks = max(3, int(rng.choice(analysis.block_counts) * input_mult))
+                base_blks = blocks_for_length(inl)  # derive strictly from the chosen input_length
                 # force some extension from previous turn
                 if prev_h:
                     # keep first 60-90% of prev as "history"
@@ -519,6 +595,22 @@ def generate_extended(
         "notes": "Generated by cloning real burst+prefix structure with controlled perturbations. Hot prefixes kept shared to reproduce realistic enterprise cache behavior.",
     }
 
+    # Guarantee AIPerf mooncake_trace compatibility for every generated record.
+    # This truncates any excess tail hash_ids so that len(hash_ids) == ceil(input_length / 512).
+    # (Shared prefixes live at the front, so reuse structure is essentially preserved
+    #  and the reported input_length / ISL distribution is left exactly as sampled.)
+    generated = normalize_trace_for_aiperf(generated)
+
+    # Final sanity check (should be empty after normalization)
+    consistency_errors = validate_hash_block_consistency(generated)
+    if consistency_errors:
+        # Non-fatal in production use, but loud in logs / notebooks
+        print("[tracerator] WARNING: post-normalize consistency issues (should not happen):")
+        for e in consistency_errors[:5]:
+            print("  ", e)
+        if len(consistency_errors) > 5:
+            print(f"  ... and {len(consistency_errors)-5} more")
+
     return generated, manifest
 
 
@@ -567,25 +659,61 @@ def load_builtin(name: str) -> Tuple[List[Dict], TraceAnalysis]:
     return reqs, analysis
 
 
+# ---------- Tiny CLI for normalization (useful for perf teams / legacy traces) ----------
+
+def _main_normalize():
+    import argparse
+    p = argparse.ArgumentParser(description="Normalize a Mooncake-style trace.jsonl so it is AIPerf mooncake_trace compatible.")
+    p.add_argument("input", help="input trace.jsonl")
+    p.add_argument("-o", "--output", default=None, help="output path (default: <input>.normalized.jsonl)")
+    p.add_argument("--block-size", type=int, default=BLOCK_SIZE)
+    p.add_argument("--in-place", action="store_true", help="overwrite the input file (dangerous)")
+    args = p.parse_args()
+
+    reqs = load_trace(args.input)
+    clean = normalize_trace_for_aiperf(reqs, args.block_size)
+
+    errs_before = validate_hash_block_consistency(reqs, args.block_size)
+    errs_after = validate_hash_block_consistency(clean, args.block_size)
+
+    out_path = args.output or (args.input + ".normalized.jsonl")
+    if args.in_place:
+        out_path = args.input
+
+    save_trace(clean, out_path)
+
+    print(f"Normalized {len(reqs)} records -> {out_path}")
+    print(f"  violations before: {len(errs_before)}")
+    print(f"  violations after : {len(errs_after)}")
+    if errs_after:
+        print("  (still some issues — investigate)")
+
 if __name__ == "__main__":
-    # quick self test
-    print("Loading conversation builtin for self-test...")
-    reqs, an = load_builtin("conversation")
-    print(an.summary())
-    print("Generating 1.5x scale, high reuse, + some new sessions...")
-    ext, man = generate_extended(
-        reqs, an,
-        scale=1.5,
-        input_mult=1.1,
-        output_mult=1.0,
-        reuse_bias=0.85,
-        seed=123,
-        add_new_sessions=20,
-        new_req_fraction=0.05,
-    )
-    print("Output:", man["output_stats"])
-    print("First 2 lines of generated:")
-    for r in ext[:2]:
-        print(" ", r)
-    print("Manifest keys:", list(man.keys()))
-    print("Self-test OK.")
+    if len(sys.argv) > 1 and sys.argv[1] in ("--normalize", "normalize"):
+        # python Mooncake/trace_gen/generator.py normalize in.jsonl -o out.jsonl
+        # (or python -m Mooncake.trace_gen.generator normalize ...)
+        sys.argv = ["generator"] + sys.argv[2:]  # drop subcommand for argparse
+        _main_normalize()
+    else:
+        # original self-test (heavy) when run with no special subcommand
+        # (kept for `python .../generator.py` convenience during development)
+        print("Loading conversation builtin for self-test...")
+        reqs, an = load_builtin("conversation")
+        print(an.summary())
+        print("Generating 1.5x scale, high reuse, + some new sessions...")
+        ext, man = generate_extended(
+            reqs, an,
+            scale=1.5,
+            input_mult=1.1,
+            output_mult=1.0,
+            reuse_bias=0.85,
+            seed=123,
+            add_new_sessions=20,
+            new_req_fraction=0.05,
+        )
+        print("Output:", man["output_stats"])
+        print("First 2 lines of generated:")
+        for r in ext[:2]:
+            print(" ", r)
+        print("Manifest keys:", list(man.keys()))
+        print("Self-test OK.")
