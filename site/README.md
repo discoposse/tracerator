@@ -1,7 +1,15 @@
 # Tracerator UI
 
-This is the UI for the app.
+Static UI served by the backend.
 
-Open index.html or run the container with docker compose up from the project root.
+![Tracerator UI](../assets/01-tracerator-overview.jpg)
 
-See the main README.md for full instructions and details.
+Run with Docker Compose from the project root for the full experience:
+
+```bash
+docker compose up
+```
+
+Then browse to http://localhost:8000.
+
+See the main [README.md](../README.md) for full instructions, pre-flight launcher, and details.

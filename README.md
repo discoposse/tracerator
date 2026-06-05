@@ -14,7 +14,7 @@ Generic generators (independent requests, uniform or simple normal lengths, Pois
 
 ## The Tool
 
-The tool is called Tracerator. The graphical UI is the self-contained fancy page at site/index.html (with live estimates that update dynamically as you adjust the sliders).
+The tool is called Tracerator. The graphical UI is the self-contained fancy page at `site/index.html` (with live estimates that update dynamically as you adjust the sliders).
 
 To run (recommended):
 
@@ -28,13 +28,31 @@ The launcher includes a pre-flight that checks for Docker and installs `jq` (hig
 
 Open http://localhost:8000 in your browser.
 
-In the UI:
-- Pick a base workload via the 3 cards (Conversation / Tool & Agent / Synthetic). The active card is ring-highlighted.
-- Adjust any of the parameter sliders (scale, input/output multipliers, reuse bias, new sessions, modeled mix, seed). The 4 large "Live estimates" boxes update instantly client-side.
-- Click **Generate & download zip** to get `tracerator-output.zip` with `trace.jsonl` + `manifest.json`.
-- Click **Preview manifest + sample** to view the manifest and first few trace lines inline (without download).
+## UI (visual walkthrough)
 
-The docker-compose uses a bind mount so the containerized app always serves the live site/index.html as its UI (refresh browser after edits; restart container for .py changes).
+![Full Tracerator UI](assets/01-tracerator-overview.jpg)
+
+### Base workload cards
+Pick the starting pattern. The active card is ring-highlighted and shows the base characteristics.
+
+![Base workload selection](assets/02-tracerator-base-workload.jpg)
+
+### Parameters
+Sliders for scale, length multipliers, reuse bias (cache hit intensity), new sessions, modeled mix, and a reproducibility seed.
+
+![Parameters](assets/03-tracerator-parameters.jpg)
+
+### Live estimates
+Four large cards give instant client-side approximations that mirror the backend formulas.
+
+![Live estimates](assets/04-tracerator-live-estimates.jpg)
+
+### Generate & preview
+Download the full zip (trace + manifest + README) or preview the manifest + first sample lines directly in the browser.
+
+![Manifest + sample preview](assets/05-tracerator-manifest-preview.jpg)
+
+The docker-compose uses a bind mount so the containerized app always serves the live `site/index.html` as its UI (refresh browser after edits; restart container for .py changes).
 
 You can also run locally for development:
 
