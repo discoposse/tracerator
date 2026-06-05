@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tracerator backend - serves UI and generates trace zips."""
+"""Simple Tracerator backend: serves the static UI and generates real trace zips."""
 
 import json
 import random
@@ -9,6 +9,7 @@ from flask import Flask, request, send_file, jsonify
 
 app = Flask(__name__, static_folder='site', static_url_path='')
 
+# Simple base stats for simulation (from real patterns, but small for demo)
 BASES = {
     'conversation': {'n': 12031, 'dur': 3537000, 'in_med': 6909, 'out_med': 350, 'burst': 28, 'share': 0.4},
     'toolagent': {'n': 23608, 'dur': 3537000, 'in_med': 6346, 'out_med': 30, 'burst': 47, 'share': 0.6},
@@ -16,6 +17,7 @@ BASES = {
 }
 
 def generate_trace_data(params):
+    """Generate a simulated but realistic trace based on params. No external data needed."""
     base_name = params.get('base', 'conversation')
     base = BASES.get(base_name, BASES['conversation'])
     scale = float(params.get('scale', 1.0))
@@ -28,14 +30,17 @@ def generate_trace_data(params):
 
     random.seed(seed)
 
-    n = max(1, int(base['n'] * scale * (1 + modeled_mix)) + new_sessions * 3)
+    n = max(1, int(base['n'] * scale * (1 + modeled_mix)))
+    # Add some from new sessions
+    n += new_sessions * 3
 
     reqs = []
     ts = 0
-    hot_blocks = list(range(100))
+    hot_blocks = list(range(100))  # simulate hot shared blocks
 
     for i in range(n):
-        if random.random() < 0.1:
+        # Simulate bursty timestamps
+        if random.random() < 0.1:  # burst chance
             ts += random.randint(0, 50)
         else:
             ts += random.randint(10, 500)
@@ -43,9 +48,11 @@ def generate_trace_data(params):
         in_len = max(100, int(base['in_med'] * input_mult * random.uniform(0.8, 1.2)))
         out_len = max(1, int(base['out_med'] * output_mult * random.uniform(0.5, 2.0)))
 
+        # hash_ids: simulate sharing
         num_blocks = max(2, int(in_len / 500))
         h = []
         if random.random() < reuse_bias:
+            # reuse some hot
             h = random.sample(hot_blocks, min(5, len(hot_blocks)))
             h += [1000 + i * 10 + j for j in range(num_blocks - len(h))]
         else:
@@ -55,9 +62,10 @@ def generate_trace_data(params):
             "timestamp": ts,
             "input_length": in_len,
             "output_length": out_len,
-            "hash_ids": sorted(h)[:num_blocks]
+            "hash_ids": sorted(h)[:num_blocks]  # limit
         })
 
+    # Compute some stats
     unique_h = len(set(h for r in reqs for h in r['hash_ids']))
     manifest = {
         "generator": "tracerator",
@@ -67,7 +75,7 @@ def generate_trace_data(params):
         "unique_block_ids": unique_h,
         "max_concurrency": base['burst'],
         "seed": seed,
-        "note": "Simulated output based on base patterns."
+        "note": "Simulated from base patterns. Real generator would load full base trace data and remap hashes precisely."
     }
 
     return reqs, manifest
@@ -81,10 +89,13 @@ def generate():
     params = request.get_json() or {}
     reqs, manifest = generate_trace_data(params)
 
+    # Build zip in memory
     zip_buffer = BytesIO()
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        # trace.jsonl
         trace_content = '\n'.join(json.dumps(r, separators=(',', ':')) for r in reqs)
         zf.writestr('trace.jsonl', trace_content + '\n')
+        # manifest.json
         zf.writestr('manifest.json', json.dumps(manifest, indent=2))
     zip_buffer.seek(0)
 
@@ -97,9 +108,11 @@ def generate():
 
 @app.route('/manifest', methods=['POST'])
 def manifest_preview():
+    """Return just the manifest for preview in UI."""
     params = request.get_json() or {}
     _, manifest = generate_trace_data(params)
-    reqs, _ = generate_trace_data({**params, 'scale': min(0.05, float(params.get('scale', 1)))})
+    # Also include a small sample of the trace
+    reqs, _ = generate_trace_data({**params, 'scale': min(0.1, float(params.get('scale',1)))})  # small for preview
     sample = '\n'.join(json.dumps(r, separators=(',', ':')) for r in reqs[:5])
     return jsonify({
         'manifest': manifest,

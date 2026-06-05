@@ -25,12 +25,12 @@ docker compose up -d
 Open http://localhost:8000 in your browser.
 
 In the UI:
-- Select a base trace (from the current collection)
-- Adjust parameters using the sliders. The live estimates section updates dynamically with estimated requests, duration, cache hit ratio, and max concurrency.
-- Click Generate to produce and download a zip containing trace.jsonl and manifest.json.
-- Click Preview manifest to see the manifest and sample trace lines.
+- Pick a base workload via the 3 cards (Conversation / Tool & Agent / Synthetic). The active card is ring-highlighted.
+- Adjust any of the parameter sliders (scale, input/output multipliers, reuse bias, new sessions, modeled mix, seed). The 4 large "Live estimates" boxes update instantly client-side.
+- Click **Generate & download zip** to get `tracerator-output.zip` with `trace.jsonl` + `manifest.json`.
+- Click **Preview manifest + sample** to view the manifest and first few trace lines inline (without download).
 
-The UI provides an instructive flow for configuring and generating the output.
+The docker-compose uses a bind mount so the containerized app always serves the live site/index.html as its UI (refresh browser after edits; restart container for .py changes).
 
 You can also run locally for development:
 

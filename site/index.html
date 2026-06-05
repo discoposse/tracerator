@@ -5,229 +5,268 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tracerator</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; }
-    .section { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
-    .card { background: white; border: 1px solid #e2e8f0; border-radius: 10px; padding: 0.75rem; cursor: pointer; transition: all 0.1s ease; }
-    .card:hover { border-color: #6366f1; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .card.active { border-color: #6366f1; background: #f0f0ff; }
-    pre { background: #0f172a; color: #e2e8f0; padding: 0.5rem; border-radius: 6px; overflow: auto; font-size: 0.7rem; line-height: 1.1; }
-    input[type=range] { width: 100%; accent-color: #6366f1; }
-    .preview-value { font-family: ui-monospace, monospace; font-weight: 700; font-size: 1.1rem; }
-    .est-label { font-size: 0.65rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; }
-    .control-row { display: flex; align-items: center; gap: 0.5rem; }
-    .control-row label { min-width: 140px; font-size: 0.85rem; }
-    .header { border-bottom: 1px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 1rem; }
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    input[type=range] { width: 100%; accent-color: #0f172a; }
+    pre { font-size: 10px; line-height: 1.3; }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-900 p-6 max-w-5xl mx-auto">
-  <div class="flex items-center gap-3 mb-6">
-    <div class="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white">
-      <i class="fa-solid fa-database"></i>
+<body class="bg-slate-50 text-slate-900">
+  <div class="max-w-5xl mx-auto p-8">
+    <div class="flex items-baseline justify-between mb-6">
+      <div>
+        <h1 class="text-4xl font-semibold tracking-tight">Tracerator</h1>
+        <p class="text-slate-600 mt-1">Generate simulated traces from base workload patterns. The output includes a full manifest for reproducibility.</p>
+      </div>
     </div>
-    <div>
-      <h1 class="text-3xl font-semibold tracking-tight">Tracerator</h1>
-      <p class="text-xs text-slate-500 -mt-1">Simulated trace generator</p>
-    </div>
-  </div>
 
-  <div class="section">
-    <h2 class="font-semibold mb-3 text-lg">1. Select base trace</h2>
-    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="base-cards">
-      <div class="card active" data-base="conversation" onclick="selectBase(this, 'conversation')">
-        <div class="font-medium">Conversation</div>
-        <div class="text-xs text-slate-500">Real multi-turn chatbot traffic</div>
-        <div class="text-[10px] mt-1 text-emerald-600">~12k requests • 40% share</div>
-      </div>
-      <div class="card" data-base="toolagent" onclick="selectBase(this, 'toolagent')">
-        <div class="font-medium">Tool &amp; Agent</div>
-        <div class="text-xs text-slate-500">High-volume agent/tool use</div>
-        <div class="text-[10px] mt-1 text-emerald-600">~24k requests • 60% share</div>
-      </div>
-      <div class="card" data-base="synthetic" onclick="selectBase(this, 'synthetic')">
-        <div class="font-medium">Synthetic</div>
-        <div class="text-xs text-slate-500">Public datasets + Poisson</div>
-        <div class="text-[10px] mt-1 text-emerald-600">~4k requests • lower share</div>
-      </div>
-    </div>
-  </div>
+    <!-- Base cards -->
+    <div class="mb-6">
+      <div class="text-sm font-medium text-slate-500 mb-2">Base workload</div>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div id="card-conversation" class="base-card bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-400 transition" onclick="selectBase('conversation')">
+          <div class="flex items-center justify-between">
+            <div class="font-semibold">Conversation</div>
+            <div class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">12k</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">Multi-turn chat, longer contexts</div>
+          <div class="mt-3 text-xs text-slate-500 grid grid-cols-3 gap-2">
+            <div>med in <span class="font-mono text-slate-700">6909</span></div>
+            <div>med out <span class="font-mono text-slate-700">350</span></div>
+            <div>burst <span class="font-mono text-slate-700">28</span></div>
+          </div>
+        </div>
 
-  <div class="section">
-    <h2 class="font-semibold mb-3 text-lg">2. Adjust parameters</h2>
-    <div class="space-y-4">
-      <div class="control-row">
-        <label>Scale</label>
-        <input type="range" id="scale" min="0.1" max="10" step="0.1" value="1.0" oninput="updatePreview()">
-        <span id="scale-val" class="preview-value w-10 text-right">1.0</span>
-      </div>
-      <div class="control-row">
-        <label>Input length ×</label>
-        <input type="range" id="input" min="0.1" max="5" step="0.1" value="1.0" oninput="updatePreview()">
-        <span id="input-val" class="preview-value w-10 text-right">1.0</span>
-      </div>
-      <div class="control-row">
-        <label>Output length ×</label>
-        <input type="range" id="output" min="0.1" max="5" step="0.1" value="1.0" oninput="updatePreview()">
-        <span id="output-val" class="preview-value w-10 text-right">1.0</span>
-      </div>
-      <div class="control-row">
-        <label>Reuse bias</label>
-        <input type="range" id="reuse" min="0" max="1" step="0.01" value="0.5" oninput="updatePreview()">
-        <span id="reuse-val" class="preview-value w-10 text-right">0.50</span>
-      </div>
-      <div class="control-row">
-        <label>New sessions</label>
-        <input type="range" id="sessions" min="0" max="100" step="1" value="0" oninput="updatePreview()">
-        <span id="sessions-val" class="preview-value w-10 text-right">0</span>
-      </div>
-      <div class="control-row">
-        <label>Modeled mix</label>
-        <input type="range" id="mix" min="0" max="1" step="0.05" value="0.0" oninput="updatePreview()">
-        <span id="mix-val" class="preview-value w-10 text-right">0.00</span>
-      </div>
-      <div class="control-row">
-        <label>Seed</label>
-        <input type="number" id="seed" value="42" class="border px-2 py-0.5 w-20 text-sm" oninput="updatePreview()">
-      </div>
-    </div>
-  </div>
+        <div id="card-toolagent" class="base-card bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-400 transition" onclick="selectBase('toolagent')">
+          <div class="flex items-center justify-between">
+            <div class="font-semibold">Tool &amp; Agent</div>
+            <div class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">23.6k</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">Tool calls, agent loops, shorter outputs</div>
+          <div class="mt-3 text-xs text-slate-500 grid grid-cols-3 gap-2">
+            <div>med in <span class="font-mono text-slate-700">6346</span></div>
+            <div>med out <span class="font-mono text-slate-700">30</span></div>
+            <div>burst <span class="font-mono text-slate-700">47</span></div>
+          </div>
+        </div>
 
-  <div class="section">
-    <h2 class="font-semibold mb-3 text-lg">Live estimates</h2>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <div class="est-box">
-        <div class="est-label">Estimated requests</div>
-        <div id="out-reqs" class="text-3xl font-semibold tabular-nums">12000</div>
-      </div>
-      <div class="est-box">
-        <div class="est-label">Est. duration</div>
-        <div id="out-dur" class="text-2xl font-semibold">~1.0h</div>
-      </div>
-      <div class="est-box">
-        <div class="est-label">Est. cache hit</div>
-        <div id="out-hit" class="text-2xl font-semibold text-emerald-600">50%</div>
-      </div>
-      <div class="est-box">
-        <div class="est-label">Max concurrency</div>
-        <div id="out-burst" class="text-2xl font-semibold">~10</div>
+        <div id="card-synthetic" class="base-card bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-400 transition" onclick="selectBase('synthetic')">
+          <div class="flex items-center justify-between">
+            <div class="font-semibold">Synthetic</div>
+            <div class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">4k</div>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">Higher input tokens, low burst</div>
+          <div class="mt-3 text-xs text-slate-500 grid grid-cols-3 gap-2">
+            <div>med in <span class="font-mono text-slate-700">11587</span></div>
+            <div>med out <span class="font-mono text-slate-700">69</span></div>
+            <div>burst <span class="font-mono text-slate-700">2</span></div>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="text-xs text-slate-500 mt-2">Updates live as you adjust the parameters above.</div>
-  </div>
 
-  <div class="flex gap-3">
-    <button onclick="generateTrace()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium flex-1 sm:flex-none">Generate</button>
-    <button onclick="previewManifest()" class="px-5 py-2 border border-slate-300 hover:bg-slate-100 rounded-lg text-sm font-medium flex-1 sm:flex-none">Preview manifest</button>
-  </div>
+    <!-- Parameters -->
+    <div class="bg-white border border-slate-200 rounded-xl p-5 mb-6">
+      <div class="text-sm font-medium text-slate-500 mb-3">Parameters</div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-5 text-sm">
+        <div>
+          <label class="flex items-baseline justify-between mb-1">
+            <span class="font-medium">Scale</span>
+            <span id="scale-val" class="font-mono text-xs px-1.5 py-0.5 bg-slate-100 rounded">1.0x</span>
+          </label>
+          <input type="range" id="scale" min="0.1" max="10" step="0.1" value="1.0" oninput="updateAll()">
+        </div>
 
-  <div id="results" class="hidden mt-4 section">
-    <h2 class="font-semibold mb-2">Output</h2>
-    <div class="mb-2">
-      <a id="dl-link" href="#" class="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-sm">
-        <i class="fa-solid fa-download"></i> Download zip
-      </a>
-      <span class="text-xs text-slate-500 ml-2">Contains trace.jsonl + manifest.json</span>
-    </div>
-    <div class="mb-2">
-      <div class="text-xs font-medium mb-1 text-slate-500">Manifest</div>
-      <pre id="manifest-pre" class="text-xs max-h-48"></pre>
-    </div>
-    <div>
-      <div class="text-xs font-medium mb-1 text-slate-500">Sample trace lines</div>
-      <pre id="sample-pre" class="text-xs max-h-32"></pre>
-    </div>
-  </div>
+        <div>
+          <label class="flex items-baseline justify-between mb-1">
+            <span class="font-medium">Input length multiplier</span>
+            <span id="input-mult-val" class="font-mono text-xs px-1.5 py-0.5 bg-slate-100 rounded">1.0x</span>
+          </label>
+          <input type="range" id="input-mult" min="0.1" max="5" step="0.1" value="1.0" oninput="updateAll()">
+        </div>
 
-  <div class="mt-6 text-xs text-slate-500">
-    <p>Output is generated server-side based on the selected base and parameters. Use the zip for replay in your modeling tools.</p>
-    <p class="mt-1">Run with: docker compose up (see README).</p>
+        <div>
+          <label class="flex items-baseline justify-between mb-1">
+            <span class="font-medium">Output length multiplier</span>
+            <span id="output-mult-val" class="font-mono text-xs px-1.5 py-0.5 bg-slate-100 rounded">1.0x</span>
+          </label>
+          <input type="range" id="output-mult" min="0.1" max="5" step="0.1" value="1.0" oninput="updateAll()">
+        </div>
+
+        <div>
+          <label class="flex items-baseline justify-between mb-1">
+            <span class="font-medium">Reuse bias (sharing)</span>
+            <span id="reuse-val" class="font-mono text-xs px-1.5 py-0.5 bg-slate-100 rounded">0.50</span>
+          </label>
+          <input type="range" id="reuse" min="0" max="1" step="0.05" value="0.50" oninput="updateAll()">
+          <div class="text-[10px] text-slate-400 mt-0.5">Higher → more simulated prefix reuse / cache hits</div>
+        </div>
+
+        <div>
+          <label class="flex items-baseline justify-between mb-1">
+            <span class="font-medium">New sessions</span>
+            <span id="new-sessions-val" class="font-mono text-xs px-1.5 py-0.5 bg-slate-100 rounded">0</span>
+          </label>
+          <input type="range" id="new-sessions" min="0" max="200" step="1" value="0" oninput="updateAll()">
+          <div class="text-[10px] text-slate-400 mt-0.5">Extra independent sessions added</div>
+        </div>
+
+        <div>
+          <label class="flex items-baseline justify-between mb-1">
+            <span class="font-medium">Modeled mix</span>
+            <span id="modeled-mix-val" class="font-mono text-xs px-1.5 py-0.5 bg-slate-100 rounded">0.00</span>
+          </label>
+          <input type="range" id="modeled-mix" min="0" max="1" step="0.05" value="0.00" oninput="updateAll()">
+          <div class="text-[10px] text-slate-400 mt-0.5">Blend in additional modeled requests</div>
+        </div>
+
+        <div class="md:col-span-1">
+          <label class="font-medium text-sm">Seed</label>
+          <input type="number" id="seed" value="42" class="mt-1 block w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateEstimates()">
+          <div class="text-[10px] text-slate-400 mt-0.5">For reproducible output</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live estimates -->
+    <div class="mb-6">
+      <div class="flex items-center justify-between mb-2">
+        <div class="text-sm font-medium text-slate-500">Live estimates</div>
+        <div class="text-[10px] text-slate-400">Instant feedback — backend recomputes exactly on generate</div>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="text-xs uppercase tracking-wider text-slate-500">Est. requests</div>
+          <div id="out-reqs" class="mt-1 text-4xl font-semibold tabular-nums text-slate-900">12031</div>
+          <div class="text-[10px] text-slate-400 mt-1">Total lines in trace.jsonl</div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="text-xs uppercase tracking-wider text-slate-500">Est. time span</div>
+          <div id="out-dur" class="mt-1 text-4xl font-semibold tabular-nums text-slate-900">3537s</div>
+          <div class="text-[10px] text-slate-400 mt-1">Rough trace duration from first to last</div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="text-xs uppercase tracking-wider text-slate-500">Est. hit ratio</div>
+          <div id="out-hit" class="mt-1 text-4xl font-semibold tabular-nums text-slate-900">50%</div>
+          <div class="text-[10px] text-slate-400 mt-1">Derived from reuse bias</div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-xl p-4">
+          <div class="text-xs uppercase tracking-wider text-slate-500">Est. peak concurrency</div>
+          <div id="out-burst" class="mt-1 text-4xl font-semibold tabular-nums text-slate-900">28</div>
+          <div class="text-[10px] text-slate-400 mt-1">Max concurrent in-flight (scaled)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="flex flex-wrap items-center gap-3">
+      <button onclick="generateTrace()" class="px-6 py-2.5 bg-slate-900 hover:bg-black active:bg-slate-950 text-white text-sm font-medium rounded-xl transition">Generate &amp; download zip</button>
+      <button onclick="previewManifest()" class="px-5 py-2.5 border border-slate-300 hover:bg-white active:bg-slate-50 text-sm font-medium rounded-xl transition">Preview manifest + sample</button>
+      <span class="text-xs text-slate-400 ml-2">zip contains <span class="font-mono">trace.jsonl</span> + <span class="font-mono">manifest.json</span></span>
+    </div>
+
+    <!-- Results / Preview -->
+    <div id="results" class="hidden mt-6 bg-white border border-slate-200 rounded-xl p-5">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-medium text-sm">Manifest + sample</div>
+        <a id="download-again" href="#" class="text-xs px-3 py-1 rounded border border-slate-300 hover:bg-slate-50">Download zip again</a>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 text-xs">
+        <div>
+          <div class="uppercase text-[10px] text-slate-500 mb-1">manifest.json</div>
+          <pre id="manifest-pre" class="bg-slate-900 text-slate-100 p-3 rounded-lg overflow-auto max-h-72 text-[10px] leading-tight"></pre>
+        </div>
+        <div>
+          <div class="uppercase text-[10px] text-slate-500 mb-1">First 5 trace lines (sample)</div>
+          <pre id="sample-pre" class="bg-slate-900 text-slate-100 p-3 rounded-lg overflow-auto max-h-72 text-[10px] leading-tight"></pre>
+        </div>
+      </div>
+      <div class="mt-3 text-[10px] text-slate-400">Use the zip for your modeling / replay pipeline. The manifest records the exact parameters and derived stats.</div>
+    </div>
+
+    <div class="mt-8 text-xs text-slate-400">
+      The live numbers are client-side approximations that mirror the backend formulas. Generation always uses the authoritative server-side logic seeded for repeatability. See README for details and the full parameter contract.
+    </div>
   </div>
 
   <script>
     const baseStats = {
-      conversation: { n: 12031, dur: 3537, burst: 28, share: 0.40 },
-      toolagent: { n: 23608, dur: 3537, burst: 47, share: 0.60 },
-      synthetic: { n: 3993, dur: 1022, burst: 2, share: 0.42 }
+      'conversation': { n: 12031, dur: 3537000, burst: 28 },
+      'toolagent':      { n: 23608, dur: 3537000, burst: 47 },
+      'synthetic':      { n: 3993,  dur: 1022000, burst: 2 }
     };
+    let currentBase = 'conversation';
 
-    let selectedBase = 'conversation';
-
-    function selectBase(el, base) {
-      document.querySelectorAll('#base-cards .card').forEach(c => c.classList.remove('active'));
-      el.classList.add('active');
-      selectedBase = base;
-      const baseSel = document.getElementById('base');
-      if (baseSel) baseSel.value = base;
-      updatePreview();
+    function selectBase(b) {
+      currentBase = b;
+      document.querySelectorAll('.base-card').forEach(c => {
+        c.classList.remove('ring-2', 'ring-slate-900', 'border-slate-900');
+        c.classList.add('border-slate-200');
+      });
+      const card = document.getElementById('card-' + b);
+      if (card) {
+        card.classList.remove('border-slate-200');
+        card.classList.add('ring-2', 'ring-slate-900', 'border-slate-900');
+      }
+      updateAll();
     }
 
     function updateLabels() {
-      const ids = ['scale', 'input', 'output', 'reuse', 'sessions', 'mix'];
-      ids.forEach(id => {
+      const pairs = [
+        ['scale', 'x'],
+        ['input-mult', 'x'],
+        ['output-mult', 'x'],
+        ['reuse', ''],
+        ['new-sessions', ''],
+        ['modeled-mix', '']
+      ];
+      pairs.forEach(([id, suffix]) => {
+        const el = document.getElementById(id);
         const valEl = document.getElementById(id + '-val');
-        const input = document.getElementById(id);
-        if (valEl && input) {
-          let v = parseFloat(input.value);
-          if (id === 'reuse' || id === 'mix') v = v.toFixed(2);
-          else if (id === 'scale' || id === 'input' || id === 'output') v = v.toFixed(1);
-          valEl.textContent = v;
+        if (!el || !valEl) return;
+        let v = parseFloat(el.value);
+        if (id === 'reuse' || id === 'modeled-mix') {
+          valEl.textContent = v.toFixed(2);
+        } else if (id === 'scale' || id === 'input-mult' || id === 'output-mult') {
+          valEl.textContent = v.toFixed(1) + suffix;
+        } else {
+          valEl.textContent = Math.round(v);
         }
       });
-      updatePreview();
     }
 
-    function updatePreview() {
-      const base = document.getElementById('base') ? document.getElementById('base').value : selectedBase;
-      const stats = baseStats[base] || baseStats.conversation;
-      const s = parseFloat(document.getElementById('scale').value);
-      const i = parseFloat(document.getElementById('input').value);
-      const o = parseFloat(document.getElementById('output').value);
-      const r = parseFloat(document.getElementById('reuse').value);
-      const sess = parseInt(document.getElementById('sessions').value);
-      const m = parseFloat(document.getElementById('mix').value);
+    function updateEstimates() {
+      const s = baseStats[currentBase] || baseStats['conversation'];
+      const scale = parseFloat(document.getElementById('scale').value) || 1.0;
+      const inM = parseFloat(document.getElementById('input-mult').value) || 1.0;
+      const outM = parseFloat(document.getElementById('output-mult').value) || 1.0;
+      const reuse = parseFloat(document.getElementById('reuse').value) || 0.5;
+      const news = parseInt(document.getElementById('new-sessions').value) || 0;
+      const mix = parseFloat(document.getElementById('modeled-mix').value) || 0.0;
 
-      const total = Math.round(stats.n * s * (1 + m) + sess * 3);
-      const durH = (stats.dur * s / 3600).toFixed(1);
-      const hit = Math.round(Math.min(82, (stats.share * 100) + (r - 0.5) * 40));
-      const mb = Math.round(stats.burst * Math.min(1.5, s * 0.6 + 0.4));
+      // Mirror backend generate_trace_data formulas for live feedback
+      const estReqs = Math.max(1, Math.round(s.n * scale * (1 + mix) + news * 3));
+      let estDurS = Math.round((s.dur / 1000) * scale * (1 + (inM + outM - 2) * 0.08));
+      estDurS = Math.max(10, estDurS);
+      const estHit = Math.min(0.95, Math.max(0.05, reuse * 0.8 + 0.1));
+      const estBurst = Math.max(1, Math.round(s.burst * (1 + (scale - 1) * 0.15 + mix * 0.1)));
 
-      document.getElementById('out-reqs').textContent = total.toLocaleString();
-      document.getElementById('out-dur').textContent = `~${durH}h`;
-      document.getElementById('out-hit').textContent = hit + '%';
-      document.getElementById('out-burst').textContent = '~' + mb;
+      document.getElementById('out-reqs').textContent = estReqs.toLocaleString();
+      document.getElementById('out-dur').textContent = estDurS + 's';
+      document.getElementById('out-hit').textContent = (estHit * 100).toFixed(0) + '%';
+      document.getElementById('out-burst').textContent = estBurst;
     }
 
-    // Attach listeners
-    ['scale','input','output','reuse','sessions','mix'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener('input', updateLabels);
-      }
-    });
-    const baseSel = document.getElementById('base');
-    if (baseSel) baseSel.addEventListener('change', updatePreview);
-    const seedEl = document.getElementById('seed');
-    if (seedEl) seedEl.addEventListener('input', updatePreview);
-
-    function getParams() {
-      return {
-        base: document.getElementById('base') ? document.getElementById('base').value : selectedBase,
-        scale: parseFloat(document.getElementById('scale').value),
-        input_mult: parseFloat(document.getElementById('input').value),
-        output_mult: parseFloat(document.getElementById('output').value),
-        reuse_bias: parseFloat(document.getElementById('reuse').value),
-        new_sessions: parseInt(document.getElementById('sessions').value),
-        modeled_mix: parseFloat(document.getElementById('mix').value),
-        seed: parseInt(document.getElementById('seed').value) || 42
-      };
+    function updateAll() {
+      updateLabels();
+      updateEstimates();
     }
 
     async function generateTrace() {
       const params = getParams();
       const res = await fetch('/generate', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
       });
       if (!res.ok) {
@@ -243,13 +282,29 @@
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      // Also refresh the preview area with the same params
+      await previewManifest(params, /*alsoDownload=*/false);
     }
 
-    async function previewManifest() {
-      const params = getParams();
+    function getParams() {
+      return {
+        base: currentBase,
+        scale: parseFloat(document.getElementById('scale').value),
+        input_mult: parseFloat(document.getElementById('input-mult').value),
+        output_mult: parseFloat(document.getElementById('output-mult').value),
+        reuse_bias: parseFloat(document.getElementById('reuse').value),
+        new_sessions: parseInt(document.getElementById('new-sessions').value) || 0,
+        modeled_mix: parseFloat(document.getElementById('modeled-mix').value),
+        seed: parseInt(document.getElementById('seed').value) || 42
+      };
+    }
+
+    async function previewManifest(overrideParams, skipDownload) {
+      const params = overrideParams || getParams();
       const res = await fetch('/manifest', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params)
       });
       if (!res.ok) {
@@ -260,27 +315,54 @@
       document.getElementById('manifest-pre').textContent = JSON.stringify(data.manifest, null, 2);
       document.getElementById('sample-pre').textContent = data.sample_trace || '';
       document.getElementById('results').classList.remove('hidden');
+
+      // wire the download-again link to re-trigger with same params
+      const again = document.getElementById('download-again');
+      again.onclick = async (e) => {
+        e.preventDefault();
+        const r = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(params)
+        });
+        if (r.ok) {
+          const b = await r.blob();
+          const u = URL.createObjectURL(b);
+          const aa = document.createElement('a');
+          aa.href = u;
+          aa.download = 'tracerator-output.zip';
+          document.body.appendChild(aa);
+          aa.click();
+          document.body.removeChild(aa);
+          URL.revokeObjectURL(u);
+        }
+      };
     }
 
-    // Init
     function init() {
-      // Set initial active card
-      const firstCard = document.querySelector('#base-cards .card');
-      if (firstCard) firstCard.classList.add('active');
-      
-      // Initial values and preview
-      document.getElementById('scale-val').textContent = '1.0';
-      document.getElementById('input-val').textContent = '1.0';
-      document.getElementById('output-val').textContent = '1.0';
-      document.getElementById('reuse-val').textContent = '0.50';
-      document.getElementById('sessions-val').textContent = '0';
-      document.getElementById('mix-val').textContent = '0.00';
-      
-      updatePreview();
-      document.getElementById('results').classList.add('hidden');
+      // wire the old ids that are not using inline oninput (seed already has onchange)
+      // make sure initial labels + estimates reflect the slider positions
+      updateAll();
+
+      // select initial base card
+      const initCard = document.getElementById('card-' + currentBase);
+      if (initCard) {
+        initCard.classList.remove('border-slate-200');
+        initCard.classList.add('ring-2', 'ring-slate-900', 'border-slate-900');
+      }
+
+      // hide results initially
+      const res = document.getElementById('results');
+      if (res) res.classList.add('hidden');
+
+      // bonus: update on any range via event delegation if needed, but inline oninput covers them
+      // also listen for direct input on seed
+      const seedEl = document.getElementById('seed');
+      if (seedEl) seedEl.addEventListener('input', updateEstimates);
     }
 
-    window.onload = init;
+    // start
+    document.addEventListener('DOMContentLoaded', init);
   </script>
 </body>
 </html>
