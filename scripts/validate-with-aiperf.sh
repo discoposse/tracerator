@@ -15,7 +15,7 @@
 # (in the repo root). Read that first for context, manual commands, result interpretation,
 # and handoff workflows.
 #
-# Companion toolkit (full local AIPerf + vLLM/Ollama/LMCache setup scripts for macOS/Linux):
+# Companion toolkit (full local AIPerf + vLLM/Ollama/LMCache setup for macOS/Linux, plus real NVIDIA/AMD workflows):
 # https://github.com/discoposse/aiperf-toolkit
 #
 # Usage (from repo root):
@@ -265,7 +265,8 @@ Options:
   --normalize               Run the trace through normalize_trace_for_aiperf first (fixes legacy traces that have len(hash_ids) != ceil(input_length/512)).
                             Writes a sibling .normalized.jsonl and uses that for the run.
   --slice-duration N      Pass --slice-duration N to aiperf profile. Enables time-sliced plots (timeslices_ttft, etc.) in aiperf plot --dashboard.
-                            Recommended for detailed analysis (e.g. 10 or 30). Without it, some dashboard plots will error (expected on non-NVIDIA or basic runs).
+                            Recommended for detailed analysis (e.g. 10 or 30) on any hardware.
+                            GPU telemetry plots require DCGM (NVIDIA-only); unavailable on AMD/non-NVIDIA (normal). Use ~/.aiperf/plot_config.yaml to disable noisy plots.
 
 Environment variables (all overridable):
   TRACE_FILE=...            Path to the .jsonl to validate (default: small demo example)
@@ -282,6 +283,14 @@ Examples:
 
   # With time-slicing for richer aiperf plot --dashboard output (recommended for analysis)
   ./scripts/validate-with-aiperf.sh --with-replay --subset 50 --slice-duration 10
+
+  # With time-slicing (recommended on all hardware for better dashboard plots)
+  TRACE_FILE=your_trace.jsonl \
+    ./scripts/validate-with-aiperf.sh --with-replay --subset 50 --slice-duration 10
+  aiperf plot --dashboard
+
+  # On real NVIDIA gear, add server metrics for GPU plots if DCGM is configured:
+  # ... --server-metrics http://localhost:9400/metrics (example)
 
   # Using a generated artifact + your aiperf-toolkit venv
   TRACE_FILE=~/Downloads/extended_conversation_x1.5_s42/trace.jsonl \\
@@ -500,6 +509,23 @@ main() {
             record "PASS" "Trace replay completed successfully"
             info "AIPerf artifacts (if any) written to ./artifacts or the dir you specified."
             info "Run 'aiperf plot' afterwards for visualizations."
+
+            # Hardware-aware notes for plots
+            if [[ "$(uname -s)" == "Darwin" ]]; then
+                info "Note for Apple Silicon / vLLM-metal:"
+                info "  - GPU telemetry plots (gpu_utilization_and_throughput_over_time) will error — expected (no DCGM)."
+                info "  - Edit ~/.aiperf/plot_config.yaml to disable the gpu entry if noisy."
+                info "  - All other plots work fine. See docs/VALIDATING_WITH_AIPERF.md (Apple Silicon section)."
+            else
+                info "Note: For full GPU telemetry plots (utilization, etc.) in the dashboard, DCGM must be configured on NVIDIA hardware during the run."
+                info "  On AMD or without DCGM: those plots will be unavailable (normal). Basic metrics are unaffected."
+            fi
+
+            if [[ -n "$SLICE_DURATION" ]]; then
+                info "Time-sliced plots are enabled (thanks to --slice-duration $SLICE_DURATION)."
+            else
+                info "Tip: Add --slice-duration 10 (or 30) on replay for time-based plots in aiperf plot --dashboard (useful on all hardware)."
+            fi
         else
             # Distinguish "no server" (common/expected during dev) from real trace problems
             if ! check_server "$URL" "$ENGINE"; then
@@ -578,15 +604,15 @@ main() {
         echo "• Compare aiperf analyze output + manifest.json against your expectations."
         echo "• Use --fixed-schedule (default) to validate bursty timing and arrival patterns."
         echo "• Use --no-fixed-schedule + --concurrency to test the same workload mix at max server capacity."
-        echo "• Add --slice-duration 10 (or 30) during replay to enable time-sliced plots in 'aiperf plot --dashboard'."
+        echo "• Add --slice-duration 10 (or 30) during replay to enable time-sliced plots in 'aiperf plot --dashboard' (beneficial on all hardware)."
         echo "• Real production traces (12k–23k lines) need --subset or they will take forever + hit context limits."
         echo "• The hash_ids in the trace drive realistic prefix-cache hit simulation inside AIPerf."
         echo "• After a replay run: aiperf plot   (or aiperf plot --dashboard)"
-        echo "  (For time-sliced plots, rerun with --slice-duration 10 or 30. GPU plots require NVIDIA DCGM.)"
-        echo "  On Mac/non-NVIDIA: timeslice and GPU telemetry errors are expected and harmless (your validation passed independently)."
+        echo "  (For time-sliced plots, use --slice-duration 10 or 30. GPU plots require DCGM on NVIDIA; on AMD/non-NVIDIA they error — normal.)"
+        echo "  Edit ~/.aiperf/plot_config.yaml to suppress unwanted plots."
         echo "• See AIPerf docs: trace-replay-with-mooncake-traces"
         echo "• Full instruction set (canonical): docs/VALIDATING_WITH_AIPERF.md (in this repo)"
-        echo "• Complete local AIPerf + vLLM/Ollama/LMCache stack: https://github.com/discoposse/aiperf-toolkit"
+        echo "• Complete local AIPerf + vLLM/Ollama/LMCache (and real NVIDIA/AMD) stack: https://github.com/discoposse/aiperf-toolkit"
         echo ""
         echo "=== END OF REPORT ==="
     } | tee "$report_file"

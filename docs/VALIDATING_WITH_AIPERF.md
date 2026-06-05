@@ -1,9 +1,14 @@
 # Validating Tracerator Outputs with AIPerf
 
 > **Quick links**
-> - Full local setup (AIPerf + vLLM/Ollama + validation scripts): https://github.com/discoposse/aiperf-toolkit
+> - Full local setup (AIPerf + vLLM/Ollama + validation scripts, works for Mac and real NVIDIA/AMD): https://github.com/discoposse/aiperf-toolkit
 > - This instruction set in the repo: `docs/VALIDATING_WITH_AIPERF.md`
 > - Convenience script: `scripts/validate-with-aiperf.sh --help`
+>
+> **Apple Silicon / MacBook quick start** (common for toolkit users)
+> Server: `source ~/.venv-vllm-metal/bin/activate && vllm serve ...`
+> Client: `source ~/venv/bin/activate && cd tracerator && TRACE_FILE=... ./scripts/validate-with-aiperf.sh --with-replay --subset 50 --slice-duration 10`
+> Then `aiperf plot --dashboard`. The only expected error is the GPU one (harmless on non-NVIDIA).
 
 This document is the canonical **instruction set** for validating that `trace.jsonl` files produced by Tracerator (the Mooncake trace generator) actually "play out" correctly when consumed by real performance tooling.
 
@@ -204,9 +209,43 @@ needed = blocks_for_length(63532)                      # -> 125
 - **Long context / context window exceeded** — Real traces have heavy tails (many > 8k–30k+ tokens). Use tiny subsets for smoke tests, or a model with sufficient context. Some AIPerf versions support synthesis filters like `--synthesis-max-isl`.
 - **Tokenizer errors** — Provide the correct Hugging Face tokenizer repo ID (not the Ollama tag). Fall back with `--use-server-token-count`.
 - **Slow runs** — Never run full 12k–23k line traces with fixed schedule for initial validation. `--subset 20-100` is usually enough to prove the structure works.
-- **aiperf plot --dashboard errors about "timeslices" or "no timeslice data"** — You didn't pass `--slice-duration` during the profile run. Rerun with `--slice-duration 10` (or 30). The validator script now supports `--slice-duration N` directly.
-- **GPU telemetry / DCGM errors in plots** — These require NVIDIA DCGM to be running and `--server-metrics` (or equivalent) during the benchmark. Not available on non-NVIDIA hardware (e.g. Apple Silicon MacBook) or without DCGM configured. This is expected and harmless on Mac; basic plots (TTFT, throughput, etc.) will still generate. The validation itself succeeded independently of plots.
-- **Running on MacBook / non-NVIDIA** — Expect some advanced plots (GPU util, certain telemetry) to be unavailable. The core trace replay and basic metrics are still fully functional. Use the toolkit's vllm-metal path for the server side.
+- **aiperf plot --dashboard errors about "timeslices" or "no timeslice data"** — You didn't pass `--slice-duration` during the profile run. Rerun with `--slice-duration 10` (or 30). The validator script supports `--slice-duration N` directly. This feature is useful on *all* hardware (NVIDIA, AMD, etc.) for time-based analysis.
+- **GPU telemetry / DCGM errors in plots** — These require NVIDIA DCGM to be running and server metrics collection (e.g. `--server-metrics`) during the benchmark. 
+  - Not available on non-NVIDIA hardware (Apple Silicon, AMD without equivalent setup, or no DCGM configured).
+  - On legitimate NVIDIA gear with DCGM properly configured, full GPU plots (utilization, throughput over time, etc.) will work.
+  - On AMD: AIPerf's GPU telemetry is primarily DCGM-based; you may see similar unavailability unless using custom integrations. Basic metrics are unaffected.
+  - These errors are expected and harmless when the data isn't present; the trace validation itself is independent of plots.
+
+### Impact on Real NVIDIA / AMD Gear
+The changes are **non-breaking** and mostly beneficial for production NVIDIA/AMD setups:
+- `--slice-duration` is opt-in and enables richer time-sliced plots everywhere (highly recommended on real gear).
+- Core trace replay, normalization (for hash_ids/input_length consistency), analyze-trace, and mooncake_trace compatibility are unchanged and hardware-agnostic.
+- The Mac/Apple Silicon notes and conditionals in the script only trigger special messaging on Darwin. On Linux NVIDIA, you get a general note about needing DCGM (which is accurate).
+- No functionality is disabled on real hardware. If you run with proper DCGM + `--server-metrics`, you get the full set of plots.
+- AMD users: Expect GPU plots to be limited (DCGM is NVIDIA-specific), but everything else (including slice plots with the new flag) works the same.
+
+#### Dedicated Mac / Apple Silicon Workflow Tip (for reference)
+```bash
+# Terminal 1 (server - vllm-metal)
+source ~/.venv-vllm-metal/bin/activate
+vllm serve Qwen/Qwen3-0.6B --port 8000
+
+# Terminal 2 (client - aiperf)
+source ~/venv/bin/activate
+cd /path/to/tracerator
+TRACE_FILE=your_trace.jsonl \
+  ./scripts/validate-with-aiperf.sh --with-replay --subset 50 --slice-duration 10
+aiperf plot --dashboard
+```
+(The only persistent error on Mac will be the GPU one.)
+
+#### Real NVIDIA Example (with DCGM for full plots)
+```bash
+# During profile (via the validator or manually):
+... --slice-duration 10 --server-metrics http://your-gpu-node:9400/metrics
+
+# Then plots will include GPU telemetry if DCGM is healthy.
+```
 - **Python version issues with AIPerf** — The toolkit's setup scripts avoid 3.14+ (known cyclopts/ForwardRef problems). Use the venvs they create.
 - **macOS specifics** — Use the toolkit's `macos-aiperf-full-setup.sh --with-vllm` path for good vLLM-metal support.
 
