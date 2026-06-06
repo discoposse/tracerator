@@ -156,7 +156,9 @@ with col1:
 
 with col2:
     reuse_bias = st.slider("Cache reuse bias (hit intensity)", 0.0, 1.0, 0.78, 0.01, key="reuse_bias",
-                           help="0 = more cold starts / unique content. 1.0 = aggressively use hottest shared prefixes (higher cache hit ratio, more like popular agent scaffolds or viral prompts).")
+                           help="0 = more cold starts / unique content. 1.0 = aggressively use hottest shared prefixes (higher cache hit ratio, more like popular agent scaffolds or viral prompts). Stronger & more monotonic than before.")
+    reuse_temperature = st.slider("Reuse temperature (sharpness)", 0.1, 2.0, 0.7, 0.05, key="reuse_temperature",
+                                  help="Lower values (<1.0) make selection among hot prefixes much more peaked on the very top ones when reuse_bias is high. 0.3-0.6 gives near-deterministic popular prefixes. 1.0 = previous softer behavior.")
     burst_mult = st.slider("Burst size multiplier (experimental)", 0.5, 2.0, 1.0, 0.05, key="burst_mult",
                            help="Scales how large the concurrent groups at each timestamp are (when injecting new). Cloned bursts keep original sizes exactly.")
     time_jitter = st.slider("Timestamp jitter (ms)", 0, 50, 0, 1, key="time_jitter",
@@ -188,6 +190,7 @@ if p1.button("2× chat, slightly longer ctx"):
 if p2.button("3× toolagent, high cache pressure"):
     st.session_state["scale"] = 3.0
     st.session_state["reuse_bias"] = 0.92
+    st.session_state["reuse_temperature"] = 0.45  # very sharp
     st.rerun()
 if p3.button("Scale + 10% new sessions (variety)"):
     st.session_state["new_sessions"] = 40
@@ -195,6 +198,7 @@ if p3.button("Scale + 10% new sessions (variety)"):
     st.rerun()
 if p4.button("Low cache, 1.5× rate (stress prefill)"):
     st.session_state["reuse_bias"] = 0.25
+    st.session_state["reuse_temperature"] = 1.2
     st.session_state["scale"] = 1.5
     st.rerun()
 
@@ -224,9 +228,9 @@ with bcol2:
     est_dur = int(analysis.duration_ms * scale) if not target_dur else target_dur
     est_rps = est_n / max(1, est_dur / 1000)
     st.metric("Est. requests / duration / RPS", f"{est_n:,} / {est_dur/1000:.0f}s / {est_rps:.1f}")
-    st.write("Cache hit ratio will be similar or higher (if share_hot + high reuse_bias).")
+    st.write("Cache hit ratio (manifest + recomputed causal) will be similar or **much higher** with high reuse_bias + low temperature (the bias knob is now far more effective on injected/new content).")
     st.write("Bursts and per-burst concurrency structure are cloned exactly (jitter may slightly affect).")
-    st.caption("Actual numbers + full causal hit recomputed after generation.")
+    st.caption("Actual numbers + full causal hit recomputed after generation. Use reuse_temperature < 1.0 for near-deterministic popular prefixes.")
 
 # ---------- Generate ----------
 st.header("4. Generate")
@@ -241,6 +245,7 @@ if st.button("🚀 Generate Extended Trace + Manifest", type="primary", use_cont
                 input_mult=input_mult,
                 output_mult=output_mult,
                 reuse_bias=reuse_bias,
+                reuse_temperature=reuse_temperature,
                 burst_mult=burst_mult,
                 time_jitter_ms=time_jitter,
                 share_hot_prefixes=share_hot,

@@ -51,15 +51,24 @@ def generate_trace_data(params):
         # hash_ids: simulate sharing, but *must* satisfy AIPerf mooncake_trace rule:
         #   len(hash_ids) == ceil(input_length / 512)
         # (See docs/VALIDATING_WITH_AIPERF.md and normalize_trace_for_aiperf)
-        # We use 512 (not 500) and compute exactly from the final in_len.
-        num_blocks = max(1, (in_len + 511) // 512)  # equivalent to math.ceil(in_len / 512)
+        num_blocks = max(1, (in_len + 511) // 512)
+
+        # Improved demo logic that demonstrates the stronger reuse_bias effect.
+        # High bias → much higher chance of starting with a "long" hot shared prefix
+        # (longer shared = deeper causal block hit). This mirrors the production
+        # _choose_hit_prefix + commit logic in the real generator.
         h = []
-        if random.random() < reuse_bias:
-            # reuse some hot
-            h = random.sample(hot_blocks, min(5, len(hot_blocks)))
-            h += [1000 + i * 10 + j for j in range(num_blocks - len(h))]
+        p_reuse = min(0.97, 0.04 + 0.93 * (reuse_bias ** 0.6))
+        if random.random() < p_reuse:
+            # bias the length of the reused hot prefix toward longer at high bias
+            desired_shared = max(2, int(num_blocks * (0.35 + 0.60 * reuse_bias)))
+            shared_n = min(desired_shared, len(hot_blocks), num_blocks - 1)
+            if shared_n > 0:
+                h = random.sample(hot_blocks, shared_n)
+            # fill the rest with "unique" tail
+            h += [2000 + i * 13 + j for j in range(num_blocks - len(h))]
         else:
-            h = [10000 + i * 20 + j for j in range(num_blocks)]
+            h = [10000 + i * 17 + j for j in range(num_blocks)]
 
         reqs.append({
             "timestamp": ts,
@@ -70,15 +79,36 @@ def generate_trace_data(params):
 
     # Compute some stats
     unique_h = len(set(h for r in reqs for h in r['hash_ids']))
+
+    # Compute a realistic approx_cache_hit_ratio from the actual generated prefixes
+    # (mini version of the real generator's _compute_causal_hits + analyze_trace).
+    # This makes the demo's manifest value move much more intuitively with reuse_bias
+    # and be closer to what aiperf analyze-trace will report on the output.
+    past_prefixes = set()
+    total_hit_blocks = 0
+    total_blocks = 0
+    for r in reqs:
+        h = r["hash_ids"]
+        total_blocks += len(h)
+        m = 0
+        for k in range(len(h), 0, -1):
+            if tuple(h[:k]) in past_prefixes:
+                m = k
+                break
+        total_hit_blocks += m
+        for k in range(1, len(h) + 1):
+            past_prefixes.add(tuple(h[:k]))
+    computed_hit = (total_hit_blocks / max(1, total_blocks)) if total_blocks > 0 else 0.0
+
     manifest = {
         "generator": "tracerator",
         "params": params,
         "n_requests": len(reqs),
-        "approx_cache_hit_ratio": round(reuse_bias * 0.8 + 0.1, 3),
+        "approx_cache_hit_ratio": round(computed_hit, 3),
         "unique_block_ids": unique_h,
         "max_concurrency": base['burst'],
         "seed": seed,
-        "note": "Simulated from base patterns (demo). hash_ids length is now strictly ceil(input_length/512) for AIPerf mooncake_trace compatibility. For production fidelity use Mooncake/trace_gen/."
+        "note": "Simulated from base patterns (demo, improved bias model). approx_cache_hit_ratio is now computed from actual generated prefix overlaps (mini-causal) and moves much more strongly/monotonically with reuse_bias. hash_ids length strictly ceil(input_length/512). For production use Mooncake/trace_gen/."
     }
 
     # Extra belt-and-suspenders: enforce the rule on the final list

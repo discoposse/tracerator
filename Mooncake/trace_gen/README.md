@@ -32,6 +32,32 @@ In the UI you can:
 
 The core generator is also usable directly from Python.
 
+## Controlling Cache Hit Ratio with reuse_bias + reuse_temperature
+
+The `reuse_bias` (0.0–1.0) parameter now has a much stronger, monotonic effect on the generated block-level prefix cache hit ratio (visible in both `manifest.json:output_stats.approx_cache_hit_ratio` and in `aiperf analyze-trace` / full replay on the output).
+
+- Low bias (0.2–0.4): mostly cold / unique tails → low hit ratios.
+- Medium (0.6–0.8): balanced.
+- High (0.9–0.97): aggressively reuses the hottest long prefixes.
+
+`reuse_temperature` (default 1.0, lower = sharper) makes the selection among hot prefixes near-deterministic on the most popular ones when bias is high. Typical "very hot" setting: `reuse_bias=0.92, reuse_temperature=0.45`.
+
+The bias primarily affects:
+- freshly modeled requests (`new_req_fraction`)
+- injected new sessions (`add_new_sessions`)
+- the length of prefix that is actually "hit" (deeper hits at high bias)
+
+Cloned bursts + `share_hot_prefixes=True` already give a strong realistic baseline from the real trace structure.
+
+See `docs/VALIDATING_WITH_AIPERF.md` and the `demo_reuse_bias_effect()` helper in `generator.py` for before/after style validation.
+
+Example (real generator):
+```python
+ext, man = generate_extended(base, analysis, scale=1.5, reuse_bias=0.92, reuse_temperature=0.5, add_new_sessions=15, new_req_fraction=0.07)
+print(man["output_stats"]["approx_cache_hit_ratio"])
+# then feed the trace.jsonl to aiperf analyze-trace or profile --custom-dataset-type mooncake_trace
+```
+
 ## Reproducibility
 
 `requirements.txt` pins exact versions. Every generated artifact includes a manifest with the source collection, every parameter value, the seed, and output statistics.
