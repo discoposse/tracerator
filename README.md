@@ -112,7 +112,7 @@ The hash_ids are remapped block hashes. Matching prefixes across requests = KVCa
    For a complete local stack (AIPerf + vLLM/Ollama setup scripts, validation helpers, LMCache support on macOS/Linux):
    https://github.com/discoposse/aiperf-toolkit
 
-   Also see [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md).
+   Also see [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md) (especially the section on the improved `reuse_bias` + `reuse_temperature` controls for predictable cache hit ratios).
 4. The receiving team can replay with the original Mooncake simulator, AIPerf (trace replay mode), or their modeling tool, knowing the workload characteristics and how they were derived from real traffic.
 
 ## References

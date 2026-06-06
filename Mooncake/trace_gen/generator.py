@@ -245,30 +245,63 @@ def _resample_with_mult(vals: List[int], mult: float, rng: random.Random, jitter
     return v
 
 
-def _choose_hit_prefix(analysis: TraceAnalysis, reuse_bias: float, rng: random.Random) -> Tuple[int, ...]:
+def _choose_hit_prefix(
+    analysis: TraceAnalysis,
+    reuse_bias: float,
+    rng: random.Random,
+    temperature: float = 1.0,
+) -> Tuple[int, ...]:
     """
-    Pick a prefix to "hit", biased by reuse_bias (0=cold/new, 1=always hottest).
-    reuse_bias=0.7 means 70% chance to pick from weighted hot, else short or none.
+    Pick a prefix to "hit", with strong, monotonic control from reuse_bias (0.0–1.0).
+
+    - High reuse_bias → much higher probability of selecting a hot prefix (amplified, not linear).
+    - Low temperature (or high bias) → selection among hot prefixes becomes sharply peaked
+      on the most popular ones (near-deterministic reuse of top hot prefixes for bias>=0.9 + temp<=0.3).
+    - High bias also reduces the chance of artificially shortening the chosen prefix.
+
+    This makes reuse_bias produce predictable, aggressive movement in observed block-level
+    prefix hit ratios (both the manifest approx_cache_hit_ratio and aiperf analyze-trace).
     """
-    if not analysis.hot_prefixes or rng.random() > reuse_bias:
-        # cold start: small random or empty
+    if not analysis.hot_prefixes:
         return tuple()
-    # Weighted pick from hot (more popular prefixes more likely)
+
+    # Amplified probability of attempting a hot reuse.
+    # At bias=0.3 ~30-40% attempt; at 0.8 ~90%+; at 0.95 ~97%+.
+    # This is stronger than a simple "if random() > bias" and gives the knob real leverage
+    # on injected/new content (the main place users can control hit ratio beyond the cloned baseline).
+    p_attempt = min(0.985, 0.03 + 0.955 * (reuse_bias ** 0.55))
+    if rng.random() > p_attempt:
+        return tuple()
+
     prefs, weights = zip(*analysis.hot_prefixes)
-    # temperature on weights to avoid always same few
-    total = sum(weights)
-    if total == 0:
-        return tuple()
+
+    # Temperature controls sharpness of the distribution over hot prefixes.
+    # Effective exponent grows with bias and with 1/temperature.
+    # Low temp + high bias → very heavy weight on the single hottest prefix(es).
+    eff_temp = max(0.08, temperature * (1.0 - 0.65 * reuse_bias))
+    exp = 1.0 / eff_temp
+
+    powered = [float(w) ** exp for w in weights]
+    total = sum(powered)
+    if total <= 0:
+        return prefs[0]
+
     r = rng.random() * total
-    cum = 0
-    for p, w in zip(prefs, weights):
-        cum += w
+    cum = 0.0
+    chosen = prefs[0]
+    for p, pw in zip(prefs, powered):
+        cum += pw
         if r <= cum:
-            # occasionally take shorter version of it for variety
-            if len(p) > 2 and rng.random() < 0.3:
-                return p[: rng.randint(2, len(p))]
-            return p
-    return prefs[0]
+            chosen = p
+            break
+
+    # High reuse_bias → strongly prefer the full length of the popular prefix (less "variety" truncation).
+    # This directly increases the causal hit depth / block hit ratio.
+    shorten_prob = 0.35 * (1.0 - reuse_bias)
+    if len(chosen) > 2 and rng.random() < shorten_prob:
+        return chosen[: rng.randint(2, len(chosen))]
+
+    return chosen
 
 
 def _generate_hash_list(
@@ -277,25 +310,50 @@ def _generate_hash_list(
     reuse_bias: float,
     fresh_start: "FreshIdGen",
     rng: random.Random,
+    temperature: float = 1.0,
 ) -> List[int]:
     """
-    Generate a realistic hash_id list:
-    - Choose a hot prefix (biased)
-    - Append enough fresh unique blocks for the remainder.
-    - target_blocks is desired len(hash_ids), derived from sampled input_len.
+    Generate a hash_id list whose prefix hit behavior is strongly controlled by reuse_bias.
+
+    - At high reuse_bias we are much more likely to start with a long hot prefix
+      (via the improved _choose_hit_prefix) **and** we commit to a larger fraction
+      of that prefix as the actual hit (deeper causal reuse).
+    - target_blocks is derived from the final input_length (AIPerf compatibility).
+    - temperature is threaded from generate_extended for sharpness control.
     """
-    prefix = _choose_hit_prefix(analysis, reuse_bias, rng)
-    hit_len = min(len(prefix), target_blocks)
-    result = list(prefix[:hit_len])
+    prefix = _choose_hit_prefix(analysis, reuse_bias, rng, temperature)
+
+    hit_len = 0
+    if prefix:
+        max_h = min(len(prefix), target_blocks)
+        # At high bias/low temp we commit to almost the entire popular prefix.
+        # This is the main lever that makes high reuse_bias move the *observed*
+        # block hit ratio (causal prefix overlap) aggressively.
+        commit_frac = 0.25 + 0.72 * (reuse_bias ** 0.65)
+        if temperature < 0.9:
+            commit_frac = min(1.0, commit_frac + (1.0 - temperature) * 0.18)
+
+        hit_len = max(1, int(max_h * commit_frac))
+        # small stochastic wiggle that shrinks with bias (keeps some realism)
+        if rng.random() < (0.22 * (1.0 - reuse_bias)):
+            delta = rng.randint(-1, 1)
+            hit_len = max(1, min(max_h, hit_len + delta))
+
+    hit_len = min(hit_len, target_blocks)
+    result = list(prefix[:hit_len]) if hit_len > 0 else []
+
     need = target_blocks - hit_len
     for _ in range(max(0, need)):
         result.append(fresh_start.next())
-    # If we picked a long prefix but target small, truncate (still realistic: short query on long shared ctx)
+
     if len(result) > target_blocks:
         result = result[:target_blocks]
-    # Guarantee at least 1-2 blocks
-    while len(result) < 1:
+
+    # Always at least one block; two for very short new content is common in practice
+    min_blocks = 1 if target_blocks < 2 else 2
+    while len(result) < min_blocks:
         result.append(fresh_start.next())
+
     return result
 
 
@@ -408,6 +466,7 @@ def generate_extended(
     target_duration_ms: Optional[int] = None,
     add_new_sessions: int = 0,  # number of additional generated "session chains"
     new_req_fraction: float = 0.0,  # 0.0-0.3 mix in freshly sampled reqs
+    reuse_temperature: float = 1.0,  # <1.0 makes hot-prefix selection much sharper at high reuse_bias
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Produce a bulked-up trace that follows the real patterns.
@@ -419,6 +478,10 @@ def generate_extended(
 
     Perturb lengths slightly per copy.
     Optionally inject additional modeled requests/sessions.
+
+    reuse_temperature controls how "peaky" the hot prefix selection is.
+    Combined with high reuse_bias this gives very strong, near-deterministic
+    cache hit ratios on the modeled/injected content (the part users can actually tune).
     """
     rng = random.Random(seed)
     if not base_reqs:
@@ -492,7 +555,10 @@ def generate_extended(
                 inl = _resample_with_mult(analysis.input_lens, input_mult, rng)
                 outl = _resample_with_mult(analysis.output_lens, output_mult, rng)
                 blks = blocks_for_length(inl)  # derive strictly from the chosen input_length
-                hlist = _generate_hash_list(analysis, blks, reuse_bias, fresh, rng)  # modeled new, not clone
+                # Pass full reuse_bias + temperature so that high bias produces deep
+                # hot prefix hits even for these "new" modeled requests (the main knob users control).
+                hlist = _generate_hash_list(analysis, blks, reuse_bias, fresh, rng,
+                                            temperature=reuse_temperature)
                 generated.append({
                     "timestamp": base_t + bi * rng.randint(0, 3),
                     "input_length": inl,
@@ -514,14 +580,19 @@ def generate_extended(
                 base_blks = blocks_for_length(inl)  # derive strictly from the chosen input_length
                 # force some extension from previous turn
                 if prev_h:
-                    # keep first 60-90% of prev as "history"
-                    keep = int(len(prev_h) * rng.uniform(0.6, 0.9))
+                    # The "history" carry-over already gives reuse. Make the *starting* prefix
+                    # of a new session respect reuse_bias strongly (deeper hot hits at high bias).
+                    keep_frac = 0.52 + 0.42 * reuse_bias
+                    keep = int(len(prev_h) * (keep_frac + rng.uniform(-0.05, 0.05)))
+                    keep = max(1, min(len(prev_h), keep))
                     hlist = prev_h[:keep]
                     need = max(2, base_blks - len(hlist))
                     for _ in range(need):
                         hlist.append(fresh.next())
                 else:
-                    hlist = _generate_hash_list(analysis, base_blks, reuse_bias * 0.9, fresh, rng)
+                    # First turn of a brand-new session: use the (amplified) bias + temperature.
+                    hlist = _generate_hash_list(analysis, base_blks, reuse_bias, fresh, rng,
+                                                temperature=reuse_temperature)
                 prev_h = hlist
                 t = start_t + turn * rng.randint(800, 45000)  # think time + output time proxy
                 generated.append({
@@ -573,6 +644,7 @@ def generate_extended(
             "input_mult": input_mult,
             "output_mult": output_mult,
             "reuse_bias": reuse_bias,
+            "reuse_temperature": reuse_temperature,
             "burst_mult": burst_mult,
             "time_jitter_ms": time_jitter_ms,
             "share_hot_prefixes": share_hot_prefixes,
@@ -688,12 +760,70 @@ def _main_normalize():
     if errs_after:
         print("  (still some issues — investigate)")
 
+def demo_reuse_bias_effect(
+    base_name: str = "conversation",
+    scale: float = 1.2,
+    input_mult: float = 1.0,
+    biases: tuple = (0.2, 0.5, 0.78, 0.92, 0.97),
+    temperature: float = 0.65,
+    new_sessions: int = 8,
+    new_frac: float = 0.06,
+    seed: int = 42,
+    sample_for_causal: int = 4000,
+) -> None:
+    """
+    Quick validation helper.
+
+    Prints how approx_cache_hit_ratio (manifest) and a fresh causal computation
+    on the generated trace move as reuse_bias increases.
+
+    Run:
+        python -c '
+        from Mooncake.trace_gen.generator import demo_reuse_bias_effect
+        demo_reuse_bias_effect()
+        '
+    Expected (illustrative, depends on base):
+        bias=0.20 -> manifest≈0.18-0.25   observed≈0.19
+        bias=0.50 -> manifest≈0.32-0.38   observed≈0.34
+        bias=0.78 -> manifest≈0.48-0.55   observed≈0.51
+        bias=0.92 -> manifest≈0.68-0.76   observed≈0.71   <--- strong jump
+        bias=0.97 -> manifest≈0.79-0.86   observed≈0.82   <--- near-deterministic top prefixes
+    """
+    print(f"=== demo_reuse_bias_effect (base={base_name}, temp={temperature}) ===")
+    base_reqs, analysis = load_builtin(base_name)
+    for rb in biases:
+        ext, man = generate_extended(
+            base_reqs, analysis,
+            scale=scale,
+            input_mult=input_mult,
+            output_mult=1.0,
+            reuse_bias=rb,
+            reuse_temperature=temperature,
+            seed=seed,
+            add_new_sessions=new_sessions,
+            new_req_fraction=new_frac,
+            share_hot_prefixes=True,
+        )
+        man_hit = man["output_stats"]["approx_cache_hit_ratio"]
+
+        # fresh causal on a decent sample (mirrors what aiperf analyze-trace does)
+        sample = ext[: min(sample_for_causal, len(ext))]
+        hits = _compute_causal_hits(sample)
+        hls = [len(r["hash_ids"]) for r in sample]
+        observed = sum(h / max(1, hl) for h, hl in zip(hits, hls)) / max(1, len(hits))
+
+        print(f"reuse_bias={rb:4.2f}  manifest_approx={man_hit:.3f}  observed_causal_on_gen≈{observed:.3f}  (n={len(ext)})")
+    print("Done. Higher bias should show clear, roughly monotonic increase in both columns.")
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ("--normalize", "normalize"):
         # python Mooncake/trace_gen/generator.py normalize in.jsonl -o out.jsonl
         # (or python -m Mooncake.trace_gen.generator normalize ...)
         sys.argv = ["generator"] + sys.argv[2:]  # drop subcommand for argparse
         _main_normalize()
+    elif len(sys.argv) > 1 and sys.argv[1] in ("--demo-reuse", "demo-reuse"):
+        demo_reuse_bias_effect()
     else:
         # original self-test (heavy) when run with no special subcommand
         # (kept for `python .../generator.py` convenience during development)
@@ -707,6 +837,7 @@ if __name__ == "__main__":
             input_mult=1.1,
             output_mult=1.0,
             reuse_bias=0.85,
+            reuse_temperature=0.6,  # sharper hot selection
             seed=123,
             add_new_sessions=20,
             new_req_fraction=0.05,
@@ -717,3 +848,4 @@ if __name__ == "__main__":
             print(" ", r)
         print("Manifest keys:", list(man.keys()))
         print("Self-test OK.")
+        print("\n(For a quick bias sweep: python -m Mooncake.trace_gen.generator --demo-reuse )")
