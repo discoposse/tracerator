@@ -5,3 +5,7 @@ services:
       - "8000:8000"
     volumes:
       - .:/app  # bind mount so the containerized app's UI (and code) is always the live version from the tree (site/index.html etc). Restart container after Python changes; HTML/JS update on browser refresh.
+      - ${TRACERATOR_RAGPULSE_DIR:-/Users/ewright/Documents/RAGPulse}:/external/RAGPulse:ro
+      - ${TRACERATOR_CC_WEKA_DIR:-/Users/ewright/Documents/cc-traces-weka-with-subagents-051826}:/external/cc-traces-weka-with-subagents-051826:ro
+      - ${TRACERATOR_CODEX_SWEBENCHPRO_DIR:-/Users/ewright/Documents/codex_swebenchpro_traces}:/external/codex_swebenchpro_traces:ro
+      - ${TRACERATOR_AIPERF_TOOLKIT_DIR:-/Users/ewright/Documents/aiperf-toolkit}:/external/aiperf-toolkit:ro

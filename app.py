@@ -3,10 +3,16 @@
 
 import json
 import random
+import sys
 import zipfile
 from html import escape
 from io import BytesIO
+from pathlib import Path
 from flask import Flask, request, send_file, jsonify
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "Mooncake" / "trace_gen"))
+from generator import analyze_trace, generate_extended  # noqa: E402
+from trace_sources import load_source_records, source_by_id, sources_for_api  # noqa: E402
 
 app = Flask(__name__, static_folder='site', static_url_path='')
 
@@ -116,8 +122,8 @@ def choose_isl_length(base_med, input_mult, profile):
     value = int(random.uniform(lo, hi) * input_mult)
     return max(lo, min(hi, value))
 
-def generate_trace_data(params):
-    """Generate a simulated but realistic trace based on params. No external data needed."""
+def generate_legacy_simulated_trace_data(params):
+    """Generate a simulated but realistic trace based on summary stats."""
     base_name = params.get('base', 'conversation')
     base = BASES.get(base_name, BASES['conversation'])
     scale = float(params.get('scale', 1.0))
@@ -231,9 +237,85 @@ def generate_trace_data(params):
 
     return reqs, manifest
 
+def generate_trace_data(params):
+    """Generate an AIPerf-ready trace from the selected real baseline source."""
+    base_name = params.get('base', 'conversation')
+    try:
+        source = source_by_id(base_name)
+    except KeyError:
+        return generate_legacy_simulated_trace_data(params)
+
+    if not source.available:
+        raise ValueError(f"{source.label} is not available: {source.status}")
+
+    scale = float(params.get('scale', 1.0))
+    input_mult = float(params.get('input_mult', 1.0))
+    output_mult = float(params.get('output_mult', 1.0))
+    reuse_bias = float(params.get('reuse_bias', 0.5))
+    new_sessions = int(params.get('new_sessions', 0))
+    modeled_mix = min(0.30, max(0.0, float(params.get('modeled_mix', 0.0))))
+    isl_profile = params.get('isl_profile', 'empirical')
+    seed = int(params.get('seed', 42))
+
+    base_reqs = load_source_records(base_name)
+    effective_scale = scale
+    if scale < 1.0:
+        subset_n = max(1, int(len(base_reqs) * scale))
+        base_reqs = base_reqs[:subset_n]
+        effective_scale = 1.0
+
+    analysis = analyze_trace(base_reqs, name=source.id)
+    ext_reqs, real_manifest = generate_extended(
+        base_reqs,
+        analysis,
+        scale=effective_scale,
+        input_mult=input_mult,
+        output_mult=output_mult,
+        reuse_bias=reuse_bias,
+        reuse_temperature=0.7,
+        seed=seed,
+        add_new_sessions=new_sessions,
+        new_req_fraction=modeled_mix,
+        isl_profile=None if isl_profile == 'empirical' else isl_profile,
+    )
+    output_stats = real_manifest["output_stats"]
+    manifest = {
+        "generator": "tracerator",
+        "params": params,
+        "base_source": {
+            "id": source.id,
+            "label": source.label,
+            "family": source.family,
+            "path": str(source.path),
+            "mode": source.mode,
+            "cache_fidelity": source.cache_fidelity,
+        },
+        "base_stats": real_manifest.get("base_stats", {}),
+        "effective_scale": effective_scale,
+        "n_requests": output_stats["n_requests"],
+        "approx_cache_hit_ratio": output_stats["approx_cache_hit_ratio"],
+        "unique_block_ids": output_stats["unique_block_ids"],
+        "max_concurrency": output_stats["max_concurrency"],
+        "isl_distribution": output_stats["isl_distribution"],
+        "integrity": real_manifest.get("integrity", {
+            "schema": "mooncake_trace",
+            "block_size": 512,
+            "hash_ids_rule": "len(hash_ids) == ceil(input_length / 512)",
+            "aiperf_ready": True,
+        }),
+        "seed": seed,
+        "production_manifest": real_manifest,
+        "note": "Generated from a real baseline source through the production Tracerator generator. Source prefix/hash structure is preserved or deterministically adapted to 512-token AIPerf block hashes.",
+    }
+    return ext_reqs, manifest
+
 @app.route('/')
 def serve_ui():
     return app.send_static_file('index.html')
+
+@app.route('/sources', methods=['GET'])
+def sources():
+    return jsonify({"sources": sources_for_api()})
 
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():

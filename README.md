@@ -85,6 +85,22 @@ See the detailed [workload narrative and analysis](Mooncake/WORKLOAD_NARRATIVE.m
 
 The original paper, traces, and system are available at the [Mooncake GitHub repo](https://github.com/kvcache-ai/Mooncake).
 
+The launcher also discovers optional local baseline collections when mounted:
+
+- `TRACERATOR_RAGPULSE_DIR` (default `/Users/ewright/Documents/RAGPulse`)
+- `TRACERATOR_CC_WEKA_DIR` (default `/Users/ewright/Documents/cc-traces-weka-with-subagents-051826`)
+- `TRACERATOR_CODEX_SWEBENCHPRO_DIR` (default `/Users/ewright/Documents/codex_swebenchpro_traces`)
+- `TRACERATOR_AIPERF_TOOLKIT_DIR` (default `/Users/ewright/Documents/aiperf-toolkit`)
+
+`./run_trace_ui.sh` mounts these read-only into the container through `docker-compose.yml`. Sources with complete KV/prefix information are selectable for generation. Sources missing `hash_ids`, or local Git LFS payloads, are shown as unavailable with a status reason instead of being silently ignored.
+
+To download the CC Weka with subagents Git LFS payload into the local checkout:
+
+```bash
+scripts/fetch-baseline-traces.sh cc-weka-subagents
+./run_trace_ui.sh
+```
+
 ## Importing More Real-World Sources
 
 Tracerator is source-agnostic as long as the source can be mapped to the Mooncake/AIPerf replay schema. Current useful sources:

@@ -105,6 +105,29 @@ def _component_hashes_to_blocks(components: Iterable[Any], needed_blocks: int, s
     return out
 
 
+def _flatten_components(raw_hashes: Any) -> List[Any]:
+    if isinstance(raw_hashes, dict):
+        ordered_keys = ["sys_prompt", "passages_ids", "history", "web_search", "user_input"]
+        flattened: List[Any] = []
+        for key in ordered_keys:
+            value = raw_hashes.get(key, [])
+            if isinstance(value, list):
+                flattened.extend((key, item) for item in value)
+            elif value:
+                flattened.append((key, value))
+        for key, value in raw_hashes.items():
+            if key in ordered_keys:
+                continue
+            if isinstance(value, list):
+                flattened.extend((key, item) for item in value)
+            elif value:
+                flattened.append((key, value))
+        return flattened
+    if isinstance(raw_hashes, list):
+        return list(raw_hashes)
+    return []
+
+
 def import_records(
     records: List[Dict[str, Any]],
     *,
@@ -129,7 +152,7 @@ def import_records(
             session = record.get("session_id", record.get("conversation_id", ""))
             record_salt = f"{source_name}:{session}:{index}"
             hash_ids = _component_hashes_to_blocks(
-                raw_hashes,
+                _flatten_components(raw_hashes),
                 needed,
                 source_name=source_name,
                 record_salt=record_salt,
