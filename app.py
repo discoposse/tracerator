@@ -4,6 +4,7 @@
 import json
 import random
 import zipfile
+from html import escape
 from io import BytesIO
 from flask import Flask, request, send_file, jsonify
 
@@ -16,6 +17,105 @@ BASES = {
     'synthetic': {'n': 3993, 'dur': 1022000, 'in_med': 11587, 'out_med': 69, 'burst': 2, 'share': 0.42},
 }
 
+ISL_BINS = [
+    ('<=1K', 1, 1024),
+    ('1-2K', 1025, 2048),
+    ('2-4K', 2049, 4096),
+    ('4-8K', 4097, 8192),
+    ('8-16K', 8193, 16384),
+    ('16-32K', 16385, 32768),
+    ('32-64K', 32769, 65536),
+    ('64-128K', 65537, 131072),
+    ('>128K', 131073, 262144),
+]
+
+ISL_PROFILES = {
+    'empirical': {},
+    'rag': {'<=1K': 0.02, '1-2K': 0.08, '2-4K': 0.28, '4-8K': 0.32, '8-16K': 0.20, '16-32K': 0.07, '32-64K': 0.02, '64-128K': 0.01, '>128K': 0.0},
+    'balanced': {'<=1K': 0.03, '1-2K': 0.05, '2-4K': 0.12, '4-8K': 0.18, '8-16K': 0.22, '16-32K': 0.22, '32-64K': 0.13, '64-128K': 0.04, '>128K': 0.01},
+    'long_context': {'<=1K': 0.01, '1-2K': 0.02, '2-4K': 0.04, '4-8K': 0.08, '8-16K': 0.16, '16-32K': 0.25, '32-64K': 0.25, '64-128K': 0.15, '>128K': 0.04},
+    'short_chat': {'<=1K': 0.18, '1-2K': 0.24, '2-4K': 0.28, '4-8K': 0.18, '8-16K': 0.08, '16-32K': 0.03, '32-64K': 0.01, '64-128K': 0.0, '>128K': 0.0},
+}
+
+def isl_bin_for_length(length):
+    for name, lo, hi in ISL_BINS:
+        if lo <= length <= hi:
+            return name
+    return '>128K'
+
+def isl_distribution(lengths):
+    total = max(1, len(lengths))
+    return {
+        name: {'count': sum(1 for v in lengths if isl_bin_for_length(v) == name),
+               'share': round(sum(1 for v in lengths if isl_bin_for_length(v) == name) / total, 6)}
+        for name, _, _ in ISL_BINS
+    }
+
+def render_isl_distribution_text(distribution, title="ISL distribution"):
+    total = sum(int(v.get('count', 0)) for v in distribution.values()) or 1
+    max_share = max((float(v.get('share', 0)) for v in distribution.values()), default=0) or 1
+    lines = [title, "[Input length (ISL, tokens)]"]
+    for name, _, _ in ISL_BINS:
+        bucket = distribution.get(name, {})
+        count = int(bucket.get('count', 0))
+        share = float(bucket.get('share', count / total))
+        bar_len = int(round((share / max_share) * 42)) if share > 0 else 0
+        lines.append(f"{name:<8} {count:>7} ({share * 100:>5.1f}%) {'#' * bar_len}")
+    return "\n".join(lines) + "\n"
+
+def render_isl_distribution_svg(distribution, title="ISL distribution"):
+    width = 900
+    row_h = 34
+    top = 64
+    left = 130
+    bar_w = 560
+    height = top + len(ISL_BINS) * row_h + 44
+    max_share = max((float(v.get('share', 0)) for v in distribution.values()), default=0) or 1
+    rows = []
+    for idx, (name, _, _) in enumerate(ISL_BINS):
+        bucket = distribution.get(name, {})
+        count = int(bucket.get('count', 0))
+        share = float(bucket.get('share', 0))
+        y = top + idx * row_h
+        w = int((share / max_share) * bar_w) if share > 0 else 0
+        rows.append(f'''
+  <text x="24" y="{y + 19}" class="label">{escape(name)}</text>
+  <rect x="{left}" y="{y}" width="{bar_w}" height="22" rx="4" class="track"/>
+  <rect x="{left}" y="{y}" width="{w}" height="22" rx="4" class="bar"/>
+  <text x="{left + bar_w + 18}" y="{y + 17}" class="value">{count:,} ({share * 100:.1f}%)</text>''')
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+  <style>
+    .bg {{ fill: #f8fafc; }}
+    .title {{ font: 700 22px system-ui, -apple-system, Segoe UI, sans-serif; fill: #0f172a; }}
+    .sub {{ font: 500 13px system-ui, -apple-system, Segoe UI, sans-serif; fill: #64748b; }}
+    .label {{ font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #334155; }}
+    .value {{ font: 600 13px ui-monospace, SFMono-Regular, Menlo, monospace; fill: #334155; }}
+    .track {{ fill: #e2e8f0; }}
+    .bar {{ fill: #0f172a; }}
+  </style>
+  <rect class="bg" width="100%" height="100%"/>
+  <text x="24" y="30" class="title">{escape(title)}</text>
+  <text x="24" y="50" class="sub">Input length buckets for AIPerf trace replay</text>
+{''.join(rows)}
+</svg>
+'''
+
+def choose_isl_length(base_med, input_mult, profile):
+    weights = ISL_PROFILES.get(profile or 'empirical', {})
+    if not weights:
+        return max(100, int(base_med * input_mult * random.uniform(0.8, 1.2)))
+    r = random.random()
+    cum = 0.0
+    chosen = ISL_BINS[3]
+    for bucket in ISL_BINS:
+        cum += weights.get(bucket[0], 0)
+        if r <= cum:
+            chosen = bucket
+            break
+    _, lo, hi = chosen
+    value = int(random.uniform(lo, hi) * input_mult)
+    return max(lo, min(hi, value))
+
 def generate_trace_data(params):
     """Generate a simulated but realistic trace based on params. No external data needed."""
     base_name = params.get('base', 'conversation')
@@ -26,6 +126,7 @@ def generate_trace_data(params):
     reuse_bias = float(params.get('reuse_bias', 0.5))
     new_sessions = int(params.get('new_sessions', 0))
     modeled_mix = float(params.get('modeled_mix', 0.0))
+    isl_profile = params.get('isl_profile', 'empirical')
     seed = int(params.get('seed', 42))
 
     random.seed(seed)
@@ -45,7 +146,7 @@ def generate_trace_data(params):
         else:
             ts += random.randint(10, 500)
 
-        in_len = max(100, int(base['in_med'] * input_mult * random.uniform(0.8, 1.2)))
+        in_len = choose_isl_length(base['in_med'], input_mult, isl_profile)
         out_len = max(1, int(base['out_med'] * output_mult * random.uniform(0.5, 2.0)))
 
         # hash_ids: simulate sharing, but *must* satisfy AIPerf mooncake_trace rule:
@@ -74,7 +175,7 @@ def generate_trace_data(params):
             "timestamp": ts,
             "input_length": in_len,
             "output_length": out_len,
-            "hash_ids": sorted(h)[:num_blocks]
+            "hash_ids": h[:num_blocks]
         })
 
     # Compute some stats
@@ -107,8 +208,15 @@ def generate_trace_data(params):
         "approx_cache_hit_ratio": round(computed_hit, 3),
         "unique_block_ids": unique_h,
         "max_concurrency": base['burst'],
+        "isl_distribution": isl_distribution([r["input_length"] for r in reqs]),
+        "integrity": {
+            "schema": "mooncake_trace",
+            "block_size": 512,
+            "hash_ids_rule": "len(hash_ids) == ceil(input_length / 512)",
+            "aiperf_ready": True
+        },
         "seed": seed,
-        "note": "Simulated from base patterns (demo, improved bias model). approx_cache_hit_ratio is now computed from actual generated prefix overlaps (mini-causal) and moves much more strongly/monotonically with reuse_bias. hash_ids length strictly ceil(input_length/512). For production use Mooncake/trace_gen/."
+        "note": "Simulated from base patterns (demo, improved bias model). ISL profiles reshape input-length clusters for prefill/KV experiments. approx_cache_hit_ratio is computed from actual generated prefix overlaps (mini-causal). hash_ids length strictly ceil(input_length/512). For production use Mooncake/trace_gen/."
     }
 
     # Extra belt-and-suspenders: enforce the rule on the final list
@@ -140,6 +248,14 @@ def generate():
         zf.writestr('trace.jsonl', trace_content + '\n')
         # manifest.json
         zf.writestr('manifest.json', json.dumps(manifest, indent=2))
+        zf.writestr(
+            'isl_distribution.txt',
+            render_isl_distribution_text(manifest['isl_distribution'], 'TRACE: trace.jsonl')
+        )
+        zf.writestr(
+            'isl_distribution.svg',
+            render_isl_distribution_svg(manifest['isl_distribution'], 'TRACE: trace.jsonl')
+        )
         # README for users who try to "open" the files
         readme = """Tracerator generated output (demo / simulated traces)
 
@@ -153,6 +269,9 @@ Files:
 - manifest.json Exact input params + output aggregates (n_requests, approx_cache_hit_ratio,
                 unique_block_ids, max_concurrency, seed, etc.). Always keep this alongside
                 the trace for full reproducibility and traceability.
+
+- isl_distribution.txt / .svg
+                Human-readable ISL bucket distribution for quick perf handoff review.
 
 - README.txt    This file.
 

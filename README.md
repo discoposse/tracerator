@@ -42,6 +42,12 @@ Sliders for scale, length multipliers, reuse bias (cache hit intensity), new ses
 
 ![Parameters](assets/03-tracerator-parameters.jpg)
 
+Tracerator also supports explicit **ISL distribution shaping** for prefill/KV-cache studies. You can keep the empirical source trace or target named profiles such as `rag`, `balanced`, `long_context`, and `short_chat`. The production Streamlit UI also supports custom bucket weights over:
+
+`<=1K`, `1-2K`, `2-4K`, `4-8K`, `8-16K`, `16-32K`, `32-64K`, `64-128K`, `>128K`.
+
+The generator samples real observed lengths inside the selected bucket when possible, adjusts only bounded tails when needed, and then regenerates or trims `hash_ids` so every output record remains AIPerf-ready.
+
 ### Live estimates
 Four large cards give instant client-side approximations that mirror the backend formulas.
 
@@ -79,6 +85,34 @@ See the detailed [workload narrative and analysis](Mooncake/WORKLOAD_NARRATIVE.m
 
 The original paper, traces, and system are available at the [Mooncake GitHub repo](https://github.com/kvcache-ai/Mooncake).
 
+## Importing More Real-World Sources
+
+Tracerator is source-agnostic as long as the source can be mapped to the Mooncake/AIPerf replay schema. Current useful sources:
+
+- **Mooncake**: production-derived Kimi traces already included in this repo.
+- **RAGPulse**: public RAG workload trace from a university Q&A deployment ([paper](https://arxiv.org/html/2511.12979v1), [dataset](https://huggingface.co/datasets/flashserve/RAGPulse), [repo](https://github.com/flashserve/RAGPulse)). Its records include `timestamp`, `input_length`, `output_length`, `hash_ids`, and `session_id`; use component import mode because its hashes identify prompt components/documents rather than 512-token KV blocks.
+- **LMCache agentic traces**: public multi-turn agentic sessions useful for stateful prefix-growth workloads ([dataset](https://huggingface.co/datasets/sammshen/lmcache-agentic-traces)), if converted into the same schema.
+
+Importer examples:
+
+```bash
+# Existing block-hash Mooncake-style trace
+python scripts/import_trace_source.py source.jsonl \
+  --mode mooncake \
+  --timestamp-unit milliseconds \
+  --source-name my-source \
+  -o imported_trace.jsonl
+
+# RAGPulse-style component hashes; timestamps are documented in seconds
+python scripts/import_trace_source.py ragpulse.jsonl \
+  --mode component \
+  --timestamp-unit seconds \
+  --source-name ragpulse \
+  -o ragpulse.mooncake.jsonl
+```
+
+The importer writes a companion manifest and refuses to finish unless every record satisfies `len(hash_ids) == ceil(input_length / 512)`.
+
 ## Schema Reminder
 
 Each line in a trace:
@@ -88,6 +122,14 @@ Each line in a trace:
 ```
 
 The hash_ids are remapped block hashes. Matching prefixes across requests = KVCache hits (critical for the Mooncake disaggregated KVCache pool and scheduling efficacy).
+
+Integrity guarantees for generated/imported traces:
+
+- `timestamp` is in milliseconds for AIPerf fixed-schedule replay.
+- `input_length` and `output_length` are positive integers.
+- `hash_ids` are ordered prefix block identifiers.
+- `len(hash_ids) == ceil(input_length / 512)` for every record.
+- Manifests include source provenance, parameters, ISL bucket distribution, cache-hit estimate, and AIPerf readiness metadata.
 
 ## Next Steps / Handoff to Perf
 

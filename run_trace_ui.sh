@@ -61,12 +61,13 @@ if ! docker compose version > /dev/null 2>&1; then
     exit 1
   fi
   echo "Using docker-compose (legacy)..."
-  docker-compose up -d
+  docker-compose up -d --build --force-recreate
 else
-  docker compose up -d
+  docker compose up -d --build --force-recreate
 fi
 
 echo "Open http://localhost:8000 for the UI."
+echo "The launcher now recreates the container so backend changes (ISL profiles/import-ready manifests) are live."
 echo ""
 echo "After generating traces, validate them with AIPerf (exact timing + KV prefix behavior):"
 echo "  ./scripts/validate-with-aiperf.sh --analyze-only"

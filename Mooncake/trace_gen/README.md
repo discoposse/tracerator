@@ -27,6 +27,7 @@ This creates an isolated environment, installs the pinned dependencies from `req
 In the UI you can:
 - Load any trace in the current collection (or upload your own matching the schema)
 - Adjust scale, length multipliers, cache reuse intensity, new session injection, jitter, etc.
+- Choose named or custom ISL bucket distributions for prefill/KV-cache sensitivity testing
 - See live estimates
 - Generate extended traces + full manifests
 
@@ -58,6 +59,35 @@ print(man["output_stats"]["approx_cache_hit_ratio"])
 # then feed the trace.jsonl to aiperf analyze-trace or profile --custom-dataset-type mooncake_trace
 ```
 
+## Controlling ISL Clusters
+
+Use `isl_profile` or explicit `isl_bin_weights` to reshape the input sequence length distribution while preserving trace integrity:
+
+```python
+ext, man = generate_extended(
+    base,
+    analysis,
+    scale=2.0,
+    reuse_bias=0.9,
+    reuse_temperature=0.5,
+    isl_profile="long_context",  # empirical, rag, balanced, long_context, short_chat
+)
+print(man["output_stats"]["isl_distribution"])
+```
+
+For a custom split:
+
+```python
+weights = {
+    "<=1K": 0.05, "1-2K": 0.02, "2-4K": 0.07, "4-8K": 0.07,
+    "8-16K": 0.13, "16-32K": 0.24, "32-64K": 0.15,
+    "64-128K": 0.09, ">128K": 0.003,
+}
+ext, man = generate_extended(base, analysis, isl_bin_weights=weights)
+```
+
+The weights are normalized, so they can be counts, percentages, or proportions. The generator samples observed source lengths inside the chosen bucket when available, and falls back to bounded bucket sampling only for buckets missing from the source. After each record's ISL is selected, `hash_ids` are adjusted to the exact 512-token block count required by AIPerf.
+
 ## Reproducibility
 
 `requirements.txt` pins exact versions. Every generated artifact includes a manifest with the source collection, every parameter value, the seed, and output statistics.
@@ -65,6 +95,20 @@ print(man["output_stats"]["approx_cache_hit_ratio"])
 ## Adding New Trace Sources
 
 The generator is intentionally not hard-coded to one collection. As long as traces follow the documented schema, they can be loaded and extended. See the root README for the long-term vision of supporting multiple trace sources and output styles.
+
+For external datasets that are close but not identical, use the repo importer:
+
+```bash
+# Mooncake-compatible block hashes
+python scripts/import_trace_source.py source.jsonl --mode mooncake -o imported.jsonl
+
+# RAGPulse-style component/document hashes
+python scripts/import_trace_source.py ragpulse.jsonl \
+  --mode component --timestamp-unit seconds --source-name ragpulse \
+  -o ragpulse.mooncake.jsonl
+```
+
+`component` mode expands ordered component hashes into deterministic block hashes, preserving shared prefixes for AIPerf replay while enforcing `len(hash_ids) == ceil(input_length / 512)`.
 
 ## Validating Generated Traces with AIPerf
 

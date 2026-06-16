@@ -49,9 +49,21 @@ from generator import (
     load_trace, analyze_trace, generate_extended, TraceAnalysis,
     BUILTIN_TRACES, load_builtin, save_trace, save_manifest,
     validate_hash_block_consistency,
+    DEFAULT_ISL_PROFILES, ISL_BINS,
 )
 
 st.set_page_config(page_title="Realistic LLM Trace Extender", layout="wide", page_icon="📈")
+
+def render_isl_distribution_text(distribution: Dict[str, Dict[str, float]], title: str = "TRACE: trace.jsonl") -> str:
+    max_share = max((float(v.get("share", 0)) for v in distribution.values()), default=0) or 1
+    lines = [title, "[Input length (ISL, tokens)]"]
+    for name, _, _ in ISL_BINS:
+        bucket = distribution.get(name, {})
+        count = int(bucket.get("count", 0))
+        share = float(bucket.get("share", 0))
+        bar_len = int(round((share / max_share) * 42)) if share > 0 else 0
+        lines.append(f"{name:<8} {count:>7} ({share * 100:>5.1f}%) {'#' * bar_len}")
+    return "\n".join(lines) + "\n"
 
 st.title("Realistic LLM Trace Extender")
 st.caption("Scale real Kimi enterprise traces with controllable parameters while preserving burstiness, heavy tails, and *authentic* KVCache prefix sharing patterns. Output is modeling-tool ready with full manifest.")
@@ -180,6 +192,30 @@ with c5:
     new_frac = st.slider("Mix in modeled new requests (frac of output)", 0.0, 0.25, 0.03, 0.01, key="new_frac",
                          help="Adds extra requests generated from empirical distributions + hot prefix sampler. Useful to increase unique block pressure or fill gaps.")
 
+st.subheader("ISL distribution shaping")
+isl_profile = st.selectbox(
+    "Input sequence length profile",
+    list(DEFAULT_ISL_PROFILES.keys()) + ["custom"],
+    index=0,
+    key="isl_profile",
+    help="empirical keeps source lengths. Other profiles intentionally reshape ISL buckets while preserving prefix/hash integrity.",
+)
+custom_isl_weights = None
+if isl_profile == "custom":
+    st.caption("Set relative bucket weights. They are normalized before generation.")
+    custom_isl_weights = {}
+    cols = st.columns(3)
+    for idx, (bucket_name, _, _) in enumerate(ISL_BINS):
+        with cols[idx % 3]:
+            custom_isl_weights[bucket_name] = st.number_input(
+                bucket_name, min_value=0.0, max_value=100.0, value=1.0, step=0.5,
+                key=f"isl_weight_{bucket_name}"
+            )
+else:
+    weights = DEFAULT_ISL_PROFILES.get(isl_profile, {})
+    if weights:
+        st.json(weights)
+
 # Preset buttons - directly update widget state via keys so the sliders visibly change
 st.markdown("**Quick presets** (click to set sliders above, then Generate)")
 p1, p2, p3, p4 = st.columns(4)
@@ -253,6 +289,8 @@ if st.button("🚀 Generate Extended Trace + Manifest", type="primary", use_cont
                 target_duration_ms=target_dur or None,
                 add_new_sessions=int(new_sessions),
                 new_req_fraction=new_frac,
+                isl_profile=None if isl_profile == "custom" else isl_profile,
+                isl_bin_weights=custom_isl_weights,
             )
             st.session_state["last_ext"] = ext_reqs
             st.session_state["last_manifest"] = manifest
@@ -281,6 +319,18 @@ if "last_ext" in st.session_state and "last_manifest" in st.session_state:
         st.subheader("Output stats")
         ost = manifest["output_stats"]
         st.json(ost)
+        if "isl_distribution" in ost:
+            st.write("**ISL distribution**")
+            isl_df = pd.DataFrame([
+                {
+                    "bucket": name,
+                    "requests": int(ost["isl_distribution"].get(name, {}).get("count", 0)),
+                    "share_pct": round(float(ost["isl_distribution"].get(name, {}).get("share", 0)) * 100, 2),
+                }
+                for name, _, _ in ISL_BINS
+            ])
+            st.bar_chart(isl_df.set_index("bucket")["requests"])
+            st.dataframe(isl_df, use_container_width=True, hide_index=True)
         st.write("**Params used**")
         st.json(manifest["params"])
 
@@ -333,8 +383,16 @@ if "last_ext" in st.session_state and "last_manifest" in st.session_state:
     with zipfile.ZipFile(zbuf, "w", zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("trace.jsonl", buf.getvalue())
         zf.writestr("manifest.json", man_buf)
+        if "isl_distribution" in manifest.get("output_stats", {}):
+            zf.writestr(
+                "isl_distribution.txt",
+                render_isl_distribution_text(manifest["output_stats"]["isl_distribution"]),
+            )
         zf.writestr("README.txt", f"""Generated from {display_label} using trace-gen.
 See manifest for full params and stats.
+
+The zip includes isl_distribution.txt for a quick visual check of the generated
+input sequence length buckets.
 
 VALIDATING WITH AIPERF
 ----------------------

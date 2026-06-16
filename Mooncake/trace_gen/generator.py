@@ -48,6 +48,105 @@ BLOCK_SIZE = 512
 # Safe offset larger than any seen hash ids (~183k)
 HASH_ID_OFFSET = 1_000_000
 
+# Input sequence length buckets used for cache/prefill studies.
+# These match the operational split shown in the project README/UI examples.
+ISL_BINS: List[Tuple[str, int, Optional[int]]] = [
+    ("<=1K", 1, 1_024),
+    ("1-2K", 1_025, 2_048),
+    ("2-4K", 2_049, 4_096),
+    ("4-8K", 4_097, 8_192),
+    ("8-16K", 8_193, 16_384),
+    ("16-32K", 16_385, 32_768),
+    ("32-64K", 32_769, 65_536),
+    ("64-128K", 65_537, 131_072),
+    (">128K", 131_073, None),
+]
+
+DEFAULT_ISL_PROFILES: Dict[str, Dict[str, float]] = {
+    # Use the empirical source trace as-is, except for normal length multipliers.
+    "empirical": {},
+    # Bias toward the middle of current enterprise/RAG patterns.
+    "balanced": {
+        "<=1K": 0.03, "1-2K": 0.05, "2-4K": 0.12, "4-8K": 0.18,
+        "8-16K": 0.22, "16-32K": 0.22, "32-64K": 0.13,
+        "64-128K": 0.04, ">128K": 0.01,
+    },
+    # Stress prefill and long-context KV pressure.
+    "long_context": {
+        "<=1K": 0.01, "1-2K": 0.02, "2-4K": 0.04, "4-8K": 0.08,
+        "8-16K": 0.16, "16-32K": 0.25, "32-64K": 0.25,
+        "64-128K": 0.15, ">128K": 0.04,
+    },
+    # RAG-like workloads with a strong 2K-8K/16K center of mass.
+    "rag": {
+        "<=1K": 0.02, "1-2K": 0.08, "2-4K": 0.28, "4-8K": 0.32,
+        "8-16K": 0.20, "16-32K": 0.07, "32-64K": 0.02,
+        "64-128K": 0.01, ">128K": 0.0,
+    },
+    # Smaller prompts, useful as a cache-cold/prefill-light comparison.
+    "short_chat": {
+        "<=1K": 0.18, "1-2K": 0.24, "2-4K": 0.28, "4-8K": 0.18,
+        "8-16K": 0.08, "16-32K": 0.03, "32-64K": 0.01,
+        "64-128K": 0.0, ">128K": 0.0,
+    },
+}
+
+
+def isl_bin_for_length(length: int) -> str:
+    """Return the configured ISL bucket name for an input length."""
+    for name, lo, hi in ISL_BINS:
+        if length >= lo and (hi is None or length <= hi):
+            return name
+    return ISL_BINS[0][0]
+
+
+def isl_distribution(lengths: Sequence[int]) -> Dict[str, Dict[str, float]]:
+    """Return count/share per ISL bucket, preserving every configured bucket."""
+    total = max(1, len(lengths))
+    counts = Counter(isl_bin_for_length(int(v)) for v in lengths)
+    return {
+        name: {"count": int(counts.get(name, 0)), "share": round(counts.get(name, 0) / total, 6)}
+        for name, _, _ in ISL_BINS
+    }
+
+
+def _normalize_weights(weights: Optional[Dict[str, float]]) -> Dict[str, float]:
+    if not weights:
+        return {}
+    cleaned = {k: max(0.0, float(v)) for k, v in weights.items() if k in {b[0] for b in ISL_BINS}}
+    total = sum(cleaned.values())
+    if total <= 0:
+        return {}
+    return {k: v / total for k, v in cleaned.items()}
+
+
+def get_isl_profile_weights(profile: Optional[str], weights: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+    """Resolve a named ISL profile plus optional explicit bucket weights."""
+    if weights:
+        return _normalize_weights(weights)
+    if not profile or profile == "empirical":
+        return {}
+    if profile not in DEFAULT_ISL_PROFILES:
+        raise ValueError(f"unknown ISL profile {profile!r}; choose one of {list(DEFAULT_ISL_PROFILES)}")
+    return _normalize_weights(DEFAULT_ISL_PROFILES[profile])
+
+
+def _choose_weighted_bucket(weights: Dict[str, float], rng: random.Random) -> Optional[Tuple[str, int, Optional[int]]]:
+    if not weights:
+        return None
+    r = rng.random()
+    cum = 0.0
+    by_name = {b[0]: b for b in ISL_BINS}
+    last = None
+    for name, weight in weights.items():
+        if name not in by_name or weight <= 0:
+            continue
+        last = by_name[name]
+        cum += weight
+        if r <= cum:
+            return by_name[name]
+    return last
+
 @dataclass
 class TraceAnalysis:
     """Empirical distributions and structural priors extracted from a real trace."""
@@ -59,6 +158,7 @@ class TraceAnalysis:
     input_lens: List[int]
     output_lens: List[int]
     block_counts: List[int]  # len(hash_ids)
+    input_lens_by_isl: Dict[str, List[int]]
     # burst structure (critical)
     burst_sizes: List[int]          # concurrency at each unique timestamp
     unique_ts_count: int
@@ -176,6 +276,9 @@ def analyze_trace(reqs: List[Dict[str, Any]], name: str = "trace") -> TraceAnaly
     ins = [r["input_length"] for r in reqs]
     outs = [r["output_length"] for r in reqs]
     hls = [len(r["hash_ids"]) for r in reqs]
+    input_lens_by_isl: Dict[str, List[int]] = {name: [] for name, _, _ in ISL_BINS}
+    for v in ins:
+        input_lens_by_isl[isl_bin_for_length(v)].append(v)
     dur = max(ts) - min(ts)
     n = len(reqs)
     avg_rps = n / max(1, (dur / 1000.0))
@@ -221,6 +324,7 @@ def analyze_trace(reqs: List[Dict[str, Any]], name: str = "trace") -> TraceAnaly
         input_lens=ins,
         output_lens=outs,
         block_counts=hls,
+        input_lens_by_isl=input_lens_by_isl,
         burst_sizes=burst_sizes,
         unique_ts_count=unique_ts,
         burst_gaps_ms=gaps or [1000],
@@ -243,6 +347,46 @@ def _resample_with_mult(vals: List[int], mult: float, rng: random.Random, jitter
         j = rng.gauss(0, jitter)
         v = max(1, int(v * (1 + j)))
     return v
+
+
+def _resample_input_length(
+    analysis: TraceAnalysis,
+    input_mult: float,
+    rng: random.Random,
+    jitter: float = 0.12,
+    isl_weights: Optional[Dict[str, float]] = None,
+) -> int:
+    """
+    Resample input length from either the empirical distribution or a target ISL bucket mix.
+
+    When a target bucket is requested we still sample from real observed lengths inside that
+    bucket whenever possible. If the source trace has no sample for the bucket, we draw inside
+    the bucket bounds with a log-uniform-ish distribution. This keeps ISL shaping explicit
+    without manufacturing arbitrary per-record structure.
+    """
+    bucket = _choose_weighted_bucket(isl_weights or {}, rng)
+    if bucket is None:
+        return max(1, _resample_with_mult(analysis.input_lens, input_mult, rng, jitter))
+
+    name, lo, hi = bucket
+    source_vals = analysis.input_lens_by_isl.get(name, [])
+    if source_vals:
+        v = rng.choice(source_vals)
+        # Keep samples inside the selected bucket. input_mult still nudges within-bucket size
+        # but cannot silently move records into another cluster.
+        v = int(v * input_mult)
+    else:
+        effective_hi = hi if hi is not None else max(lo * 2, lo + BLOCK_SIZE * 16)
+        # Log-ish sampling gives more mass near the lower edge, matching most real traces.
+        span = math.log(max(effective_hi, lo + 1)) - math.log(lo)
+        v = int(math.exp(math.log(lo) + rng.random() * span) * input_mult)
+
+    effective_hi = hi if hi is not None else max(v, lo * 2)
+    v = max(lo, min(effective_hi, v))
+    if jitter > 0:
+        v = int(v * (1 + rng.gauss(0, jitter * 0.5)))
+        v = max(lo, min(effective_hi, v))
+    return max(1, int(v))
 
 
 def _choose_hit_prefix(
@@ -400,7 +544,8 @@ def _make_burst_template(reqs_at_ts: List[Dict], analysis: TraceAnalysis,
                          reuse_bias: float, fresh: FreshIdGen,
                          rng: random.Random,
                          share_hot: bool = True,
-                         idmap: Optional[Dict[int, int]] = None) -> List[Dict]:
+                         idmap: Optional[Dict[int, int]] = None,
+                         isl_weights: Optional[Dict[str, float]] = None) -> List[Dict]:
     """
     Faithful clone of a burst for one copy:
     - Build (or reuse) a *per-copy* idmap so that any two reqs that shared an id
@@ -416,7 +561,7 @@ def _make_burst_template(reqs_at_ts: List[Dict], analysis: TraceAnalysis,
         idmap = _make_idmap_for_copy(analysis, fresh, share_hot, rng)
     out = []
     for r in reqs_at_ts:
-        new_in = max(128, _resample_with_mult(analysis.input_lens, input_mult, rng))
+        new_in = max(128, _resample_input_length(analysis, input_mult, rng, isl_weights=isl_weights))
         new_out = max(1, _resample_with_mult(analysis.output_lens, output_mult, rng))
         orig_h = list(r["hash_ids"])
 
@@ -467,6 +612,8 @@ def generate_extended(
     add_new_sessions: int = 0,  # number of additional generated "session chains"
     new_req_fraction: float = 0.0,  # 0.0-0.3 mix in freshly sampled reqs
     reuse_temperature: float = 1.0,  # <1.0 makes hot-prefix selection much sharper at high reuse_bias
+    isl_profile: Optional[str] = None,  # empirical, balanced, rag, long_context, short_chat
+    isl_bin_weights: Optional[Dict[str, float]] = None,  # explicit bucket shares; overrides profile
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Produce a bulked-up trace that follows the real patterns.
@@ -486,6 +633,7 @@ def generate_extended(
     rng = random.Random(seed)
     if not base_reqs:
         raise ValueError("base_reqs empty")
+    resolved_isl_weights = get_isl_profile_weights(isl_profile, isl_bin_weights)
 
     base_dur = analysis.duration_ms
     n_base = analysis.n_reqs
@@ -519,7 +667,7 @@ def generate_extended(
             # clone + perturb this burst (faithful sharing-preserving remap)
             burst = _make_burst_template(
                 template, analysis, input_mult, output_mult, reuse_bias, copy_fresh, rng,
-                share_hot=share_hot_prefixes, idmap=copy_idmap
+                share_hot=share_hot_prefixes, idmap=copy_idmap, isl_weights=resolved_isl_weights
             )
             for breq in burst:
                 new_ts = breq["timestamp"] + t_offset
@@ -536,7 +684,7 @@ def generate_extended(
         for template in burst_templates[:n_frac_bursts]:
             burst = _make_burst_template(
                 template, analysis, input_mult, output_mult, reuse_bias, fresh, rng,
-                share_hot=share_hot_prefixes, idmap=frac_idmap
+                share_hot=share_hot_prefixes, idmap=frac_idmap, isl_weights=resolved_isl_weights
             )
             for breq in burst:
                 breq["timestamp"] = breq["timestamp"] + t_offset
@@ -552,7 +700,7 @@ def generate_extended(
             bsize = max(1, min(5, int(rng.choice(analysis.burst_sizes) * burst_mult * rng.uniform(0.5, 1.2))))
             base_t = rng.randint(0, max(1, max_t - 1000))
             for bi in range(bsize):
-                inl = _resample_with_mult(analysis.input_lens, input_mult, rng)
+                inl = _resample_input_length(analysis, input_mult, rng, isl_weights=resolved_isl_weights)
                 outl = _resample_with_mult(analysis.output_lens, output_mult, rng)
                 blks = blocks_for_length(inl)  # derive strictly from the chosen input_length
                 # Pass full reuse_bias + temperature so that high bias produces deep
@@ -575,7 +723,8 @@ def generate_extended(
             chain_len = rng.randint(2, 5)
             prev_h: List[int] = []
             for turn in range(chain_len):
-                inl = _resample_with_mult(analysis.input_lens, input_mult * (0.8 + 0.4*turn), rng)  # growing ctx
+                turn_mult = input_mult * (0.8 + 0.4*turn)
+                inl = _resample_input_length(analysis, turn_mult, rng, isl_weights=resolved_isl_weights)  # growing ctx
                 outl = _resample_with_mult(analysis.output_lens, output_mult, rng)
                 base_blks = blocks_for_length(inl)  # derive strictly from the chosen input_length
                 # force some extension from previous turn
@@ -638,6 +787,7 @@ def generate_extended(
             "median_input": analysis.median_input,
             "median_output": analysis.median_output,
             "approx_cache_hit_ratio": round(analysis.approx_cache_hit_ratio, 3),
+            "isl_distribution": isl_distribution(analysis.input_lens),
         },
         "params": {
             "scale": scale,
@@ -652,6 +802,8 @@ def generate_extended(
             "target_duration_ms": target_duration_ms,
             "add_new_sessions": add_new_sessions,
             "new_req_fraction": new_req_fraction,
+            "isl_profile": isl_profile or "empirical",
+            "isl_bin_weights": resolved_isl_weights,
         },
         "output_stats": {
             "n_requests": final_n,
@@ -663,8 +815,16 @@ def generate_extended(
             "approx_cache_hit_ratio": round(hit_ratio2, 3),
             "unique_block_ids": len(set(h for r in generated for h in r["hash_ids"])),
             "max_concurrency": max(Counter(final_ts).values()) if final_ts else 0,
+            "isl_distribution": isl_distribution(final_ins),
         },
-        "notes": "Generated by cloning real burst+prefix structure with controlled perturbations. Hot prefixes kept shared to reproduce realistic enterprise cache behavior.",
+        "integrity": {
+            "schema": "mooncake_trace",
+            "block_size": BLOCK_SIZE,
+            "hash_ids_rule": "len(hash_ids) == ceil(input_length / block_size)",
+            "timestamp_unit": "milliseconds",
+            "aiperf_ready": True,
+        },
+        "notes": "Generated by cloning real burst+prefix structure with controlled perturbations. Hot prefixes kept shared to reproduce realistic enterprise cache behavior. Optional ISL profiles reshape input-length buckets while preserving prefix identity and AIPerf block integrity.",
     }
 
     # Guarantee AIPerf mooncake_trace compatibility for every generated record.
