@@ -140,7 +140,7 @@
 
         <div class="md:col-span-1">
           <label class="font-medium text-sm">Seed</label>
-          <input type="number" id="seed" value="42" class="mt-1 block w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateEstimates()">
+          <input type="number" id="seed" value="42" class="mt-1 block w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateAll()">
           <div class="text-[10px] text-slate-400 mt-0.5">For reproducible output</div>
         </div>
       </div>
@@ -196,7 +196,7 @@
 
     <!-- Actions -->
     <div class="flex flex-wrap items-center gap-3">
-      <button onclick="generateTrace()" class="px-6 py-2.5 bg-slate-900 hover:bg-black active:bg-slate-950 text-white text-sm font-medium rounded-xl transition">Generate &amp; download zip</button>
+      <a id="download-link" href="/generate" download="tracerator-output.zip" onclick="queuePreviewRefresh()" class="px-6 py-2.5 bg-slate-900 hover:bg-black active:bg-slate-950 text-white text-sm font-medium rounded-xl transition">Generate &amp; download zip</a>
       <button onclick="previewManifest()" class="px-5 py-2.5 border border-slate-300 hover:bg-white active:bg-slate-50 text-sm font-medium rounded-xl transition">Preview manifest + sample</button>
       <span class="text-xs text-slate-400 ml-2">zip contains <span class="font-mono">trace.jsonl</span> + <span class="font-mono">manifest.json</span> + <span class="font-mono">isl_distribution.svg/txt</span> + <span class="font-mono">README.txt</span></span>
     </div>
@@ -379,31 +379,7 @@
     function updateAll() {
       updateLabels();
       updateEstimates();
-    }
-
-    async function generateTrace() {
-      const params = getParams();
-      const res = await fetch('/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params)
-      });
-      if (!res.ok) {
-        alert('Generation failed');
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'tracerator-output.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      // Also refresh the preview area with the same params
-      await previewManifest(params, /*alsoDownload=*/false);
+      updateDownloadLink();
     }
 
     function getParams() {
@@ -418,6 +394,24 @@
         isl_profile: document.getElementById('isl-profile').value || 'empirical',
         seed: parseInt(document.getElementById('seed').value) || 42
       };
+    }
+
+    function downloadUrl(params) {
+      const qs = new URLSearchParams();
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) qs.set(key, String(value));
+      });
+      return '/generate?' + qs.toString();
+    }
+
+    function updateDownloadLink() {
+      const link = document.getElementById('download-link');
+      if (link) link.href = downloadUrl(getParams());
+    }
+
+    function queuePreviewRefresh() {
+      const params = getParams();
+      setTimeout(() => previewManifest(params, /*alsoDownload=*/false), 250);
     }
 
     async function previewManifest(overrideParams, skipDownload) {
@@ -445,25 +439,9 @@
 
       // wire the download-again link to re-trigger with same params
       const again = document.getElementById('download-again');
-      again.onclick = async (e) => {
-        e.preventDefault();
-        const r = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(params)
-        });
-        if (r.ok) {
-          const b = await r.blob();
-          const u = URL.createObjectURL(b);
-          const aa = document.createElement('a');
-          aa.href = u;
-          aa.download = 'tracerator-output.zip';
-          document.body.appendChild(aa);
-          aa.click();
-          document.body.removeChild(aa);
-          URL.revokeObjectURL(u);
-        }
-      };
+      again.href = downloadUrl(params);
+      again.download = 'tracerator-output.zip';
+      again.onclick = null;
     }
 
     function init() {
@@ -485,7 +463,7 @@
       // bonus: update on any range via event delegation if needed, but inline oninput covers them
       // also listen for direct input on seed
       const seedEl = document.getElementById('seed');
-      if (seedEl) seedEl.addEventListener('input', updateEstimates);
+      if (seedEl) seedEl.addEventListener('input', updateAll);
     }
 
     // start

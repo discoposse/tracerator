@@ -235,9 +235,9 @@ def generate_trace_data(params):
 def serve_ui():
     return app.send_static_file('index.html')
 
-@app.route('/generate', methods=['POST'])
+@app.route('/generate', methods=['GET', 'POST'])
 def generate():
-    params = request.get_json() or {}
+    params = dict(request.args) if request.method in ('GET', 'HEAD') else (request.get_json() or {})
     reqs, manifest = generate_trace_data(params)
 
     # Build zip in memory
