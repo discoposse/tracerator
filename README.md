@@ -32,10 +32,8 @@ Open http://localhost:8000 in your browser.
 
 ![Full Tracerator UI](assets/01-tracerator-overview.jpg)
 
-### Base workload cards
-Pick the starting pattern. The active card is ring-highlighted and shows the base characteristics.
-
-![Base workload selection](assets/02-tracerator-base-workload.jpg)
+### Baseline trace source
+Pick the starting pattern from the Baseline trace source dropdown.
 
 ### Parameters
 Sliders for scale, length multipliers, reuse bias (cache hit intensity), new sessions, modeled mix, and a reproducibility seed.

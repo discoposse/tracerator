@@ -5,6 +5,7 @@ import json
 import random
 import sys
 import zipfile
+from collections import Counter
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -13,6 +14,13 @@ from flask import Flask, request, send_file, jsonify
 sys.path.insert(0, str(Path(__file__).resolve().parent / "Mooncake" / "trace_gen"))
 from generator import analyze_trace, generate_extended  # noqa: E402
 from trace_sources import load_source_records, source_by_id, sources_for_api  # noqa: E402
+from kv_cache_planning import (  # noqa: E402
+    DEFAULT_CAPACITY_GIB,
+    model_options,
+    parse_capacity_gib_values,
+    plan_kv_cache,
+    precision_options,
+)
 
 app = Flask(__name__, static_folder='site', static_url_path='')
 
@@ -41,6 +49,20 @@ ISL_PROFILES = {
     'balanced': {'<=1K': 0.03, '1-2K': 0.05, '2-4K': 0.12, '4-8K': 0.18, '8-16K': 0.22, '16-32K': 0.22, '32-64K': 0.13, '64-128K': 0.04, '>128K': 0.01},
     'long_context': {'<=1K': 0.01, '1-2K': 0.02, '2-4K': 0.04, '4-8K': 0.08, '8-16K': 0.16, '16-32K': 0.25, '32-64K': 0.25, '64-128K': 0.15, '>128K': 0.04},
     'short_chat': {'<=1K': 0.18, '1-2K': 0.24, '2-4K': 0.28, '4-8K': 0.18, '8-16K': 0.08, '16-32K': 0.03, '32-64K': 0.01, '64-128K': 0.0, '>128K': 0.0},
+}
+
+BLOCK_SIZE = 512
+WALL_CLOCK_WIN_SCENARIO = "wall_clock_win"
+WALL_CLOCK_WIN_ISL_SHARES = {
+    '<=1K': 0.01,
+    '1-2K': 0.02,
+    '2-4K': 0.04,
+    '4-8K': 0.08,
+    '8-16K': 0.16,
+    '16-32K': 0.23,
+    '32-64K': 0.28,
+    '64-128K': 0.15,
+    '>128K': 0.03,
 }
 
 def isl_bin_for_length(length):
@@ -121,6 +143,52 @@ def choose_isl_length(base_med, input_mult, profile):
     _, lo, hi = chosen
     value = int(random.uniform(lo, hi) * input_mult)
     return max(lo, min(hi, value))
+
+def parse_float(value, fallback):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+def parse_int(value, fallback):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return fallback
+
+def clamp(value, lo, hi):
+    return max(lo, min(hi, value))
+
+def percentile(values, q):
+    if not values:
+        return 0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, max(0, int(round((len(ordered) - 1) * q))))
+    return ordered[idx]
+
+def counts_from_shares(total, shares):
+    counts = {}
+    assigned = 0
+    items = list(shares.items())
+    for idx, (name, share) in enumerate(items):
+        if idx == len(items) - 1:
+            count = max(0, total - assigned)
+        else:
+            count = int(round(total * share))
+            assigned += count
+        counts[name] = count
+    return counts
+
+def blocks_for_bucket(bucket_name, rng):
+    for name, lo, hi in ISL_BINS:
+        if name != bucket_name:
+            continue
+        min_blocks = max(1, (lo + BLOCK_SIZE - 1) // BLOCK_SIZE)
+        max_blocks = max(min_blocks, (hi + BLOCK_SIZE - 1) // BLOCK_SIZE if hi else 320)
+        if bucket_name == '>128K':
+            max_blocks = min(max_blocks, 320)
+        return rng.randint(min_blocks, max_blocks)
+    return rng.randint(33, 128)
 
 def generate_legacy_simulated_trace_data(params):
     """Generate a simulated but realistic trace based on summary stats."""
@@ -237,8 +305,174 @@ def generate_legacy_simulated_trace_data(params):
 
     return reqs, manifest
 
+def generate_wall_clock_win_trace_data(params):
+    """Generate a purpose-built AIPerf trace that emphasizes TTFT/wall-clock wins.
+
+    Shape:
+    - many distinct long shared prefixes
+    - high fan-out per prefix
+    - short per-request unique tails
+    - delayed reuse across a large working set
+    - modest output lengths so prefill dominates end-to-end latency
+    """
+    seed = parse_int(params.get('seed', 42), 42)
+    rng = random.Random(seed)
+    scale = clamp(parse_float(params.get('scale', 1.0), 1.0), 0.2, 4.0)
+    input_mult = clamp(parse_float(params.get('input_mult', 1.0), 1.0), 0.5, 2.0)
+    output_mult = clamp(parse_float(params.get('output_mult', 0.8), 0.8), 0.2, 2.0)
+    reuse_bias = clamp(parse_float(params.get('reuse_bias', 0.92), 0.92), 0.55, 0.98)
+
+    prefix_count = max(80, int(round(360 * scale)))
+    fanout = max(8, min(18, int(round(7 + reuse_bias * 7))))
+    burst_size = 16
+    burst_gap_ms = 180
+
+    prefix_buckets = []
+    for bucket_name, count in counts_from_shares(prefix_count, WALL_CLOCK_WIN_ISL_SHARES).items():
+        prefix_buckets.extend([bucket_name] * count)
+    rng.shuffle(prefix_buckets)
+
+    prefix_defs = []
+    shared_block_total = 0
+    for prefix_idx, bucket_name in enumerate(prefix_buckets):
+        target_blocks = max(1, int(round(blocks_for_bucket(bucket_name, rng) * input_mult)))
+        if target_blocks <= 4:
+            tail_blocks_base = 1
+        else:
+            tail_blocks_base = max(1, min(12, int(round(target_blocks * rng.uniform(0.035, 0.075)))))
+        shared_blocks = max(1, target_blocks - tail_blocks_base)
+        start = 10_000_000 + prefix_idx * 10_000
+        prefix_defs.append({
+            "prefix_id": prefix_idx,
+            "bucket": bucket_name,
+            "target_blocks": target_blocks,
+            "tail_blocks_base": tail_blocks_base,
+            "shared_blocks": shared_blocks,
+            "shared_ids": list(range(start, start + shared_blocks)),
+        })
+        shared_block_total += shared_blocks
+
+    reqs = []
+    request_index = 0
+    tail_id = 100_000_000
+    total_blocks = 0
+    reused_blocks = 0
+    total_unique_tail_blocks = 0
+    per_request_reuse = []
+
+    for reuse_round in range(fanout):
+        order = list(range(prefix_count))
+        rng.shuffle(order)
+        for prefix_idx in order:
+            prefix = prefix_defs[prefix_idx]
+            # Short unique tails make the long shared prefix dominate TTFT.
+            if prefix["target_blocks"] <= 4:
+                tail_blocks = 1
+            else:
+                tail_blocks = max(1, int(round(prefix["tail_blocks_base"] * rng.uniform(0.8, 1.2))))
+            output_length = max(8, int(rng.gauss(64, 14) * output_mult))
+            input_blocks = prefix["shared_blocks"] + tail_blocks
+            input_length = input_blocks * BLOCK_SIZE - rng.randint(0, min(256, BLOCK_SIZE - 1))
+            tail_ids = list(range(tail_id, tail_id + tail_blocks))
+            tail_id += tail_blocks
+            hit_blocks = prefix["shared_blocks"] if reuse_round > 0 else 0
+
+            reqs.append({
+                "timestamp": (request_index // burst_size) * burst_gap_ms,
+                "input_length": input_length,
+                "output_length": output_length,
+                "hash_ids": prefix["shared_ids"] + tail_ids,
+            })
+            request_index += 1
+            total_blocks += input_blocks
+            reused_blocks += hit_blocks
+            total_unique_tail_blocks += tail_blocks
+            per_request_reuse.append(hit_blocks / input_blocks)
+
+    reqs.sort(key=lambda r: (r["timestamp"], r["input_length"], len(r["hash_ids"])))
+    timestamps = [r["timestamp"] for r in reqs]
+    input_lengths = [r["input_length"] for r in reqs]
+    output_lengths = [r["output_length"] for r in reqs]
+    duration_ms = max(timestamps) - min(timestamps) if timestamps else 0
+    unique_block_ids = shared_block_total + total_unique_tail_blocks
+    reused_token_fraction = reused_blocks / max(1, total_blocks)
+
+    params_with_defaults = {
+        **params,
+        "trace_scenario": WALL_CLOCK_WIN_SCENARIO,
+        "scenario_defaults": {
+            "base": "synthetic",
+            "scale": scale,
+            "reuse_bias": reuse_bias,
+            "input_mult": input_mult,
+            "output_mult": output_mult,
+            "isl_profile": "long_context",
+        },
+    }
+    manifest = {
+        "generator": "tracerator",
+        "params": params_with_defaults,
+        "trace_scenario": {
+            "id": WALL_CLOCK_WIN_SCENARIO,
+            "label": "Wall-clock win demo",
+            "purpose": "Broaden TTFT and end-to-end latency wins for prefix-cache tier comparisons.",
+            "design": [
+                "mixed context distribution with a long-context tail",
+                "shared prefixes with short unique tails",
+                "high fan-out per unique prefix",
+                "many distinct prefixes so working set exceeds typical HBM KV budgets",
+                "reuse delayed by interleaving all prefixes between fan-out rounds",
+                "modest output length so prefill savings dominate wall-clock time",
+            ],
+        },
+        "base_source": {
+            "id": "synthetic-wall-clock-win",
+            "label": "Purpose-built wall-clock win trace",
+            "family": "Tracerator scenario",
+            "path": "generated",
+            "mode": "scenario",
+            "cache_fidelity": "deterministic block hash_ids",
+        },
+        "scenario_stats": {
+            "prefix_count": prefix_count,
+            "fanout_per_prefix": fanout,
+            "burst_size": burst_size,
+            "burst_gap_ms": burst_gap_ms,
+            "shared_blocks_median": percentile([p["shared_blocks"] for p in prefix_defs], 0.5),
+            "shared_prefix_tokens_median": percentile([p["shared_blocks"] for p in prefix_defs], 0.5) * BLOCK_SIZE,
+            "unique_tail_blocks_total": total_unique_tail_blocks,
+            "reused_token_fraction": round(reused_token_fraction, 6),
+            "inter_reuse_gap_requests": prefix_count - 1,
+            "target_isl_shares": WALL_CLOCK_WIN_ISL_SHARES,
+        },
+        "effective_scale": scale,
+        "n_requests": len(reqs),
+        "approx_cache_hit_ratio": round(sum(per_request_reuse) / max(1, len(per_request_reuse)), 3),
+        "reused_token_fraction": round(reused_token_fraction, 3),
+        "unique_block_ids": unique_block_ids,
+        "max_concurrency": max(Counter(timestamps).values()) if timestamps else 0,
+        "duration_ms": duration_ms,
+        "avg_rps": round(len(reqs) / max(1, duration_ms / 1000), 2),
+        "median_input": percentile(input_lengths, 0.5),
+        "median_output": percentile(output_lengths, 0.5),
+        "p95_input": percentile(input_lengths, 0.95),
+        "isl_distribution": isl_distribution(input_lengths),
+        "integrity": {
+            "schema": "mooncake_trace",
+            "block_size": BLOCK_SIZE,
+            "hash_ids_rule": "len(hash_ids) == ceil(input_length / block_size)",
+            "timestamp_unit": "milliseconds",
+            "aiperf_ready": True,
+        },
+        "note": "Purpose-built trace for demonstrating wall-clock benefit from persistent prefix reuse while retaining a normal mixed context distribution: high reuse, varied shared-prefix lengths, large distinct-prefix working set, high fan-out, and modest OSL.",
+    }
+    return reqs, manifest
+
 def generate_trace_data(params):
     """Generate an AIPerf-ready trace from the selected real baseline source."""
+    if params.get('trace_scenario') == WALL_CLOCK_WIN_SCENARIO:
+        return generate_wall_clock_win_trace_data(params)
+
     base_name = params.get('base', 'conversation')
     try:
         source = source_by_id(base_name)
@@ -309,6 +543,28 @@ def generate_trace_data(params):
     }
     return ext_reqs, manifest
 
+def kv_planning_params(params):
+    warmup_value = params.get("warmup_fraction", 0.5)
+    try:
+        warmup_fraction = float(warmup_value)
+    except (TypeError, ValueError):
+        warmup_fraction = 0.5
+    return {
+        "model_id": params.get("kv_model", "kimi-k2.5"),
+        "precision": params.get("kv_precision", "bf16_fp16"),
+        "indexer_precision": params.get("kv_indexer_precision") or params.get("kv_precision", "bf16_fp16"),
+        "include_draft_kv": str(params.get("include_draft_kv", "false")).lower() in ("1", "true", "yes", "on"),
+        "tensor_parallel": int(float(params.get("tensor_parallel", 1) or 1)),
+        "block_size": int(float(params.get("block_size", 512) or 512)),
+        "capacity_gib_values": parse_capacity_gib_values(params.get("capacity_gib_values")),
+        "warmup_fraction": warmup_fraction,
+    }
+
+def attach_kv_planning(reqs, manifest, params):
+    planning = plan_kv_cache(reqs, **kv_planning_params(params))
+    manifest["kv_cache_planning"] = planning
+    return manifest
+
 @app.route('/')
 def serve_ui():
     return app.send_static_file('index.html')
@@ -317,10 +573,19 @@ def serve_ui():
 def sources():
     return jsonify({"sources": sources_for_api()})
 
+@app.route('/kv-cache/models', methods=['GET'])
+def kv_cache_models():
+    return jsonify({
+        "models": model_options(),
+        "precisions": precision_options(),
+        "default_capacity_gib_values": DEFAULT_CAPACITY_GIB,
+    })
+
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
     params = dict(request.args) if request.method in ('GET', 'HEAD') else (request.get_json() or {})
     reqs, manifest = generate_trace_data(params)
+    attach_kv_planning(reqs, manifest, params)
 
     # Build zip in memory
     zip_buffer = BytesIO()
@@ -438,7 +703,8 @@ In this repo:
 def manifest_preview():
     """Return just the manifest for preview in UI."""
     params = request.get_json() or {}
-    _, manifest = generate_trace_data(params)
+    reqs, manifest = generate_trace_data(params)
+    attach_kv_planning(reqs, manifest, params)
     # Also include a small sample of the trace
     reqs, _ = generate_trace_data({**params, 'scale': min(0.1, float(params.get('scale',1)))})  # small for preview
     sample = '\n'.join(json.dumps(r, separators=(',', ':')) for r in reqs[:5])

@@ -12,6 +12,9 @@
     .isl-row { display: grid; grid-template-columns: 72px minmax(120px, 1fr) 112px; align-items: center; gap: 10px; min-height: 26px; }
     .isl-track { height: 14px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
     .isl-fill { height: 100%; background: #0f172a; border-radius: 4px; min-width: 0; transition: width 160ms ease; }
+    .kv-table { width: 100%; border-collapse: collapse; }
+    .kv-table th, .kv-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: right; white-space: nowrap; }
+    .kv-table th:first-child, .kv-table td:first-child { text-align: left; }
     @media (max-width: 520px) {
       .isl-row { grid-template-columns: 58px minmax(80px, 1fr) 86px; gap: 6px; }
     }
@@ -26,57 +29,28 @@
       </div>
     </div>
 
-    <!-- Base cards -->
+    <!-- Baseline source -->
     <div class="mb-6">
-      <div class="text-sm font-medium text-slate-500 mb-2">Base workload</div>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div id="card-conversation" class="base-card bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-400 transition" onclick="selectBase('conversation')">
-          <div class="flex items-center justify-between">
-            <div class="font-semibold">Conversation</div>
-            <div class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">12k</div>
+      <div class="bg-white border border-slate-200 rounded-xl p-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="source-select" class="text-sm font-medium text-slate-600">Baseline trace source</label>
+            <select id="source-select" class="mt-2 block w-full border border-slate-300 rounded px-2 py-2 text-sm bg-white" onchange="selectSource(this.value)">
+              <option value="conversation">Mooncake Conversation</option>
+              <option value="toolagent">Mooncake Tool &amp; Agent</option>
+              <option value="synthetic">Mooncake Synthetic</option>
+            </select>
           </div>
-          <div class="text-xs text-slate-500 mt-0.5">Multi-turn chat, longer contexts</div>
-          <div class="mt-3 text-xs text-slate-500 grid grid-cols-3 gap-2">
-            <div>med in <span class="font-mono text-slate-700">6909</span></div>
-            <div>med out <span class="font-mono text-slate-700">350</span></div>
-            <div>burst <span class="font-mono text-slate-700">28</span></div>
-          </div>
-        </div>
-
-        <div id="card-toolagent" class="base-card bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-400 transition" onclick="selectBase('toolagent')">
-          <div class="flex items-center justify-between">
-            <div class="font-semibold">Tool &amp; Agent</div>
-            <div class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">23.6k</div>
-          </div>
-          <div class="text-xs text-slate-500 mt-0.5">Tool calls, agent loops, shorter outputs</div>
-          <div class="mt-3 text-xs text-slate-500 grid grid-cols-3 gap-2">
-            <div>med in <span class="font-mono text-slate-700">6346</span></div>
-            <div>med out <span class="font-mono text-slate-700">30</span></div>
-            <div>burst <span class="font-mono text-slate-700">47</span></div>
+          <div>
+            <label for="trace-scenario" class="text-sm font-medium text-slate-600">Trace scenario</label>
+            <select id="trace-scenario" class="mt-2 block w-full border border-slate-300 rounded px-2 py-2 text-sm bg-white" onchange="selectScenario(this.value)">
+              <option value="standard">Standard generated trace</option>
+              <option value="wall_clock_win">Wall-clock win demo</option>
+            </select>
           </div>
         </div>
-
-        <div id="card-synthetic" class="base-card bg-white border border-slate-200 rounded-xl p-4 cursor-pointer hover:border-slate-400 transition" onclick="selectBase('synthetic')">
-          <div class="flex items-center justify-between">
-            <div class="font-semibold">Synthetic</div>
-            <div class="text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600">4k</div>
-          </div>
-          <div class="text-xs text-slate-500 mt-0.5">Higher input tokens, low burst</div>
-          <div class="mt-3 text-xs text-slate-500 grid grid-cols-3 gap-2">
-            <div>med in <span class="font-mono text-slate-700">11587</span></div>
-            <div>med out <span class="font-mono text-slate-700">69</span></div>
-            <div>burst <span class="font-mono text-slate-700">2</span></div>
-          </div>
-        </div>
-      </div>
-      <div class="mt-3 bg-white border border-slate-200 rounded-xl p-4">
-        <label for="source-select" class="text-sm font-medium text-slate-600">Baseline trace source</label>
-        <select id="source-select" class="mt-2 block w-full border border-slate-300 rounded px-2 py-2 text-sm bg-white" onchange="selectSource(this.value)">
-          <option value="conversation">Mooncake Conversation</option>
-          <option value="toolagent">Mooncake Tool &amp; Agent</option>
-          <option value="synthetic">Mooncake Synthetic</option>
-        </select>
         <div id="source-details" class="text-[10px] text-slate-400 mt-2">Real Mooncake baseline bundled with Tracerator.</div>
+        <div id="scenario-details" class="text-[10px] text-slate-400 mt-1"></div>
         <div id="unavailable-sources" class="hidden mt-3 border-t border-slate-100 pt-3"></div>
       </div>
     </div>
@@ -153,6 +127,58 @@
           <input type="number" id="seed" value="42" class="mt-1 block w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateAll()">
           <div class="text-[10px] text-slate-400 mt-0.5">For reproducible output</div>
         </div>
+      </div>
+    </div>
+
+    <!-- KV cache planning -->
+    <div class="bg-white border border-slate-200 rounded-xl p-5 mb-6">
+      <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+        <div class="text-sm font-medium text-slate-500">KV cache planning</div>
+        <div class="text-[10px] text-slate-400">Preview computes policy curves from the generated trace</div>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-5 text-sm">
+        <div>
+          <label class="font-medium text-sm">Model</label>
+          <select id="kv-model" class="mt-1 block w-full border border-slate-300 rounded px-2 py-1.5 text-sm bg-white" onchange="updateAll()">
+            <option value="kimi-k2.5">Kimi K2.5</option>
+          </select>
+        </div>
+        <div>
+          <label class="font-medium text-sm">KV precision</label>
+          <select id="kv-precision" class="mt-1 block w-full border border-slate-300 rounded px-2 py-1.5 text-sm bg-white" onchange="syncIndexerPrecisionDefault(); updateAll()">
+            <option value="bf16_fp16">BF16 / FP16</option>
+            <option value="fp8_int8">FP8 / INT8</option>
+            <option value="fp4_int4">FP4 / INT4</option>
+          </select>
+        </div>
+        <div>
+          <label class="font-medium text-sm">Indexer precision</label>
+          <select id="kv-indexer-precision" class="mt-1 block w-full border border-slate-300 rounded px-2 py-1.5 text-sm bg-white" onchange="updateAll()">
+            <option value="bf16_fp16">BF16 / FP16</option>
+            <option value="fp8_int8">FP8 / INT8</option>
+            <option value="fp4_int4">FP4 / INT4</option>
+          </select>
+        </div>
+        <div>
+          <label class="font-medium text-sm">Tensor parallel</label>
+          <input type="number" id="tensor-parallel" min="1" step="1" value="1" class="mt-1 block w-24 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateAll()">
+        </div>
+        <div>
+          <label class="font-medium text-sm">Block size</label>
+          <input type="number" id="block-size" min="1" step="1" value="512" class="mt-1 block w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateAll()">
+        </div>
+        <div>
+          <label class="font-medium text-sm">Warmup fraction</label>
+          <input type="number" id="warmup-fraction" min="0" max="0.95" step="0.05" value="0.5" class="mt-1 block w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateAll()">
+        </div>
+        <div class="lg:col-span-2">
+          <label class="font-medium text-sm">Capacity GiB points</label>
+          <input type="text" id="capacity-gib-values" value="1,2,4,8,16,32,64,128,256" class="mt-1 block w-full border border-slate-300 rounded px-2 py-1 text-sm font-mono" onchange="updateAll()">
+        </div>
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" id="include-draft-kv" class="rounded border-slate-300" onchange="updateAll()">
+          <span class="font-medium">Include draft KV cache</span>
+        </label>
       </div>
     </div>
 
@@ -237,6 +263,39 @@
         </div>
         <div id="isl-generated-chart" class="space-y-1"></div>
       </div>
+      <div id="kv-planning-panel" class="mt-4 border-t border-slate-100 pt-4 hidden">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+          <div>
+            <div class="uppercase text-[10px] text-slate-500">KV cache planning</div>
+            <div id="kv-planning-subtitle" class="text-[10px] text-slate-400 mt-0.5"></div>
+          </div>
+          <div id="kv-planning-bytes" class="font-mono text-xs text-slate-500"></div>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Working set</div>
+            <div id="kv-working-set" class="mt-1 text-xl font-semibold tabular-nums"></div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Unique blocks</div>
+            <div id="kv-unique-blocks" class="mt-1 text-xl font-semibold tabular-nums"></div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Reuse ceiling</div>
+            <div id="kv-reuse-ceiling" class="mt-1 text-xl font-semibold tabular-nums"></div>
+          </div>
+          <div class="bg-slate-50 border border-slate-200 rounded-lg p-3">
+            <div class="text-[10px] uppercase tracking-wider text-slate-500">Peak memory</div>
+            <div id="kv-peak-memory" class="mt-1 text-xl font-semibold tabular-nums"></div>
+          </div>
+        </div>
+        <div class="overflow-auto">
+          <table class="kv-table text-xs">
+            <thead id="kv-policy-head"></thead>
+            <tbody id="kv-policy-body"></tbody>
+          </table>
+        </div>
+      </div>
       <div class="mt-3 text-[10px] text-slate-400">Use the zip for your modeling / replay pipeline. The manifest records the exact parameters and derived stats. <strong>trace.jsonl is JSON Lines (large files are normal)</strong> — open with code (pandas.read_json(..., lines=True), jq, head) or a real editor. GUI text editors usually cannot open multi-MB JSONL files.</div>
       <div class="mt-1 text-[10px] text-emerald-400">Validate outputs with AIPerf (bursts + KV prefix sharing): see <span class="font-mono">docs/VALIDATING_WITH_AIPERF.md</span> (full instructions) + <span class="font-mono">./scripts/validate-with-aiperf.sh</span>. Companion stack: https://github.com/discoposse/aiperf-toolkit</div>
     </div>
@@ -272,27 +331,47 @@
       ,'codex-swebenchpro': {'<=1K': 0.02, '1-2K': 0.04, '2-4K': 0.08, '4-8K': 0.12, '8-16K': 0.18, '16-32K': 0.22, '32-64K': 0.20, '64-128K': 0.11, '>128K': 0.03}
     };
     const sourceMeta = {};
+    let kvModels = [];
+    let kvPrecisions = [];
     let currentBase = 'conversation';
-
-    function selectBase(b) {
-      selectSource(b);
-    }
+    let currentScenario = 'standard';
 
     function selectSource(b) {
       currentBase = b;
-      document.querySelectorAll('.base-card').forEach(c => {
-        c.classList.remove('ring-2', 'ring-slate-900', 'border-slate-900');
-        c.classList.add('border-slate-200');
-      });
-      const card = document.getElementById('card-' + b);
-      if (card) {
-        card.classList.remove('border-slate-200');
-        card.classList.add('ring-2', 'ring-slate-900', 'border-slate-900');
-      }
       const select = document.getElementById('source-select');
       if (select && select.value !== b) select.value = b;
       updateSourceDetails();
       updateAll();
+    }
+
+    function selectScenario(value) {
+      currentScenario = value || 'standard';
+      const select = document.getElementById('trace-scenario');
+      if (select && select.value !== currentScenario) select.value = currentScenario;
+      if (currentScenario === 'wall_clock_win') {
+        applyWallClockWinDefaults();
+      }
+      updateSourceDetails();
+      updateScenarioDetails();
+      updateAll();
+    }
+
+    function setControlValue(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    }
+
+    function applyWallClockWinDefaults() {
+      currentBase = 'synthetic';
+      setControlValue('source-select', 'synthetic');
+      setControlValue('scale', '1.0');
+      setControlValue('input-mult', '1.0');
+      setControlValue('output-mult', '0.8');
+      setControlValue('reuse', '0.92');
+      setControlValue('new-sessions', '0');
+      setControlValue('modeled-mix', '0.00');
+      setControlValue('isl-profile', 'long_context');
+      setControlValue('capacity-gib-values', '16,32,64,128,256,512');
     }
 
     async function loadSources() {
@@ -317,6 +396,40 @@
       } catch (err) {
         console.warn('Unable to load trace sources', err);
       }
+    }
+
+    async function loadKvModels() {
+      try {
+        const res = await fetch('/kv-cache/models');
+        if (!res.ok) return;
+        const data = await res.json();
+        kvModels = Array.isArray(data.models) ? data.models : [];
+        kvPrecisions = Array.isArray(data.precisions) ? data.precisions : [];
+        const modelSelect = document.getElementById('kv-model');
+        if (modelSelect && kvModels.length) {
+          modelSelect.innerHTML = kvModels.map(model =>
+            `<option value="${model.id}">${model.label} (${model.family})</option>`
+          ).join('');
+          modelSelect.value = 'kimi-k2.5';
+        }
+        ['kv-precision', 'kv-indexer-precision'].forEach(id => {
+          const select = document.getElementById(id);
+          if (select && kvPrecisions.length) {
+            select.innerHTML = kvPrecisions.map(precision =>
+              `<option value="${precision.id}">${precision.label}</option>`
+            ).join('');
+            select.value = 'bf16_fp16';
+          }
+        });
+      } catch (err) {
+        console.warn('Unable to load KV cache model metadata', err);
+      }
+    }
+
+    function syncIndexerPrecisionDefault() {
+      const precision = document.getElementById('kv-precision');
+      const indexer = document.getElementById('kv-indexer-precision');
+      if (precision && indexer && !indexer.dataset.touched) indexer.value = precision.value;
     }
 
     function renderUnavailableSources(sources) {
@@ -345,12 +458,26 @@
     function updateSourceDetails() {
       const details = document.getElementById('source-details');
       if (!details) return;
+      if (currentScenario === 'wall_clock_win') {
+        details.textContent = 'Purpose-built scenario trace; baseline source is only used as the UI starting point.';
+        return;
+      }
       const meta = sourceMeta[currentBase];
       if (!meta) {
         details.textContent = 'Real Mooncake baseline bundled with Tracerator.';
         return;
       }
       details.textContent = `${meta.description} Cache fidelity: ${meta.cache_fidelity}. Source: ${meta.path}`;
+    }
+
+    function updateScenarioDetails() {
+      const details = document.getElementById('scenario-details');
+      if (!details) return;
+      if (currentScenario === 'wall_clock_win') {
+        details.textContent = 'Targets high reuse, long shared prefixes, large prefix working set, high fan-out, delayed reuse, and modest OSL.';
+      } else {
+        details.textContent = '';
+      }
     }
 
     function updateLabels() {
@@ -386,6 +513,40 @@
       const news = parseInt(document.getElementById('new-sessions').value) || 0;
       const mix = parseFloat(document.getElementById('modeled-mix').value) || 0.0;
       const islProfile = document.getElementById('isl-profile').value || 'empirical';
+
+      if (currentScenario === 'wall_clock_win') {
+        const prefixCount = Math.max(80, Math.round(360 * Math.min(Math.max(scale, 0.2), 4.0)));
+        const fanout = Math.max(8, Math.min(18, Math.round(7 + Math.min(Math.max(reuse, 0.55), 0.98) * 7)));
+        const estReqs = prefixCount * fanout;
+        const estDurS = Math.max(1, Math.round((Math.ceil(estReqs / 16) * 180) / 1000));
+        const estHit = ((fanout - 1) / fanout) * 0.92;
+        document.getElementById('out-reqs').textContent = estReqs.toLocaleString();
+        document.getElementById('out-dur').textContent = estDurS + 's';
+        document.getElementById('out-hit').textContent = (estHit * 100).toFixed(0) + '%';
+        document.getElementById('out-burst').textContent = '16';
+        const avgBlocks = Math.max(2, Math.round(82 * inM));
+        const estBytes = estReqs * (120 + Math.round(avgBlocks * 6.5));
+        const sizeEl = document.getElementById('out-size');
+        if (sizeEl) sizeEl.textContent = '~' + (estBytes / 1024 / 1024).toFixed(1);
+        const shares = {
+          '<=1K': 0.01,
+          '1-2K': 0.02,
+          '2-4K': 0.04,
+          '4-8K': 0.08,
+          '8-16K': 0.16,
+          '16-32K': 0.23,
+          '32-64K': 0.28,
+          '64-128K': 0.15,
+          '>128K': 0.03
+        };
+        const estimatedDistribution = distributionFromShares(shares, estReqs);
+        renderIslChart('isl-live-chart', estimatedDistribution);
+        const totalEl = document.getElementById('isl-chart-total');
+        if (totalEl) totalEl.textContent = estReqs.toLocaleString() + ' requests';
+        const subtitle = document.getElementById('isl-chart-subtitle');
+        if (subtitle) subtitle.textContent = 'Wall-clock scenario mixed-context split; generated chart and download are authoritative';
+        return;
+      }
 
       // Mirror backend generate_trace_data formulas for live feedback
       const estReqs = Math.max(1, Math.round(s.n * scale * (1 + mix) + news * 3));
@@ -468,6 +629,7 @@
     function getParams() {
       return {
         base: currentBase,
+        trace_scenario: currentScenario,
         scale: parseFloat(document.getElementById('scale').value),
         input_mult: parseFloat(document.getElementById('input-mult').value),
         output_mult: parseFloat(document.getElementById('output-mult').value),
@@ -475,7 +637,15 @@
         new_sessions: parseInt(document.getElementById('new-sessions').value) || 0,
         modeled_mix: parseFloat(document.getElementById('modeled-mix').value),
         isl_profile: document.getElementById('isl-profile').value || 'empirical',
-        seed: parseInt(document.getElementById('seed').value) || 42
+        seed: parseInt(document.getElementById('seed').value) || 42,
+        kv_model: document.getElementById('kv-model').value || 'kimi-k2.5',
+        kv_precision: document.getElementById('kv-precision').value || 'bf16_fp16',
+        kv_indexer_precision: document.getElementById('kv-indexer-precision').value || document.getElementById('kv-precision').value || 'bf16_fp16',
+        include_draft_kv: document.getElementById('include-draft-kv').checked,
+        tensor_parallel: parseInt(document.getElementById('tensor-parallel').value) || 1,
+        block_size: parseInt(document.getElementById('block-size').value) || 512,
+        warmup_fraction: Number.isFinite(parseFloat(document.getElementById('warmup-fraction').value)) ? parseFloat(document.getElementById('warmup-fraction').value) : 0.5,
+        capacity_gib_values: document.getElementById('capacity-gib-values').value || '1,2,4,8,16,32,64,128,256'
       };
     }
 
@@ -518,6 +688,9 @@
         const generatedTotal = document.getElementById('isl-generated-total');
         if (generatedTotal) generatedTotal.textContent = total.toLocaleString() + ' requests';
       }
+      if (data.manifest && data.manifest.kv_cache_planning) {
+        renderKvPlanning(data.manifest.kv_cache_planning);
+      }
       document.getElementById('results').classList.remove('hidden');
 
       // wire the download-again link to re-trigger with same params
@@ -527,18 +700,59 @@
       again.onclick = null;
     }
 
+    function formatGiB(value) {
+      const n = Number(value) || 0;
+      if (n >= 100) return n.toFixed(0) + ' GiB';
+      if (n >= 10) return n.toFixed(1) + ' GiB';
+      return n.toFixed(3) + ' GiB';
+    }
+
+    function renderKvPlanning(planning) {
+      const panel = document.getElementById('kv-planning-panel');
+      if (!panel || !planning) return;
+      panel.classList.remove('hidden');
+      const model = planning.model || {};
+      const settings = planning.settings || {};
+      document.getElementById('kv-planning-subtitle').textContent = `${model.label || model.id} · ${settings.precision_label || settings.precision} · block ${settings.block_size}`;
+      document.getElementById('kv-planning-bytes').textContent = `${Math.round(planning.bytes_per_token || 0).toLocaleString()} B/token · ${Math.round(planning.bytes_per_block || 0).toLocaleString()} B/block`;
+      document.getElementById('kv-working-set').textContent = formatGiB(planning.working_set_gib);
+      document.getElementById('kv-unique-blocks').textContent = (planning.unique_blocks || 0).toLocaleString();
+      document.getElementById('kv-reuse-ceiling').textContent = ((planning.reuse_ceiling || 0) * 100).toFixed(1) + '%';
+      const peak = planning.peak_concurrency_estimate || {};
+      document.getElementById('kv-peak-memory').textContent = formatGiB(peak.per_device_gib || peak.total_gib || 0);
+
+      const policies = (settings.policies || ['fifo', 'lru', 'optimal']).filter(Boolean);
+      const label = { fifo: 'FIFO', lru: 'LRU', optimal: 'Optimal' };
+      document.getElementById('kv-policy-head').innerHTML = `
+        <tr>
+          <th>Budget</th>
+          <th>Blocks</th>
+          ${policies.map(policy => `<th>${label[policy] || policy}</th>`).join('')}
+          ${policies.map(policy => `<th>${label[policy] || policy} speedup</th>`).join('')}
+        </tr>`;
+      document.getElementById('kv-policy-body').innerHTML = (planning.points || []).map(point => `
+        <tr>
+          <td>${formatGiB(point.gib)}</td>
+          <td>${(point.cache_blocks || 0).toLocaleString()}</td>
+          ${policies.map(policy => {
+            const result = point.results && point.results[policy] ? point.results[policy] : {};
+            return `<td>${((result.hit_rate || 0) * 100).toFixed(1)}%</td>`;
+          }).join('')}
+          ${policies.map(policy => {
+            const result = point.results && point.results[policy] ? point.results[policy] : {};
+            return `<td>${(result.ideal_prefill_speedup || 1).toFixed(2)}x</td>`;
+          }).join('')}
+        </tr>
+      `).join('');
+    }
+
     function init() {
       // wire the old ids that are not using inline oninput (seed already has onchange)
       // make sure initial labels + estimates reflect the slider positions
       loadSources();
+      loadKvModels();
+      updateScenarioDetails();
       updateAll();
-
-      // select initial base card
-      const initCard = document.getElementById('card-' + currentBase);
-      if (initCard) {
-        initCard.classList.remove('border-slate-200');
-        initCard.classList.add('ring-2', 'ring-slate-900', 'border-slate-900');
-      }
 
       // hide results initially
       const res = document.getElementById('results');
@@ -548,6 +762,8 @@
       // also listen for direct input on seed
       const seedEl = document.getElementById('seed');
       if (seedEl) seedEl.addEventListener('input', updateAll);
+      const indexerEl = document.getElementById('kv-indexer-precision');
+      if (indexerEl) indexerEl.addEventListener('change', () => { indexerEl.dataset.touched = 'true'; });
     }
 
     // start
