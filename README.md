@@ -1,20 +1,32 @@
-# Traces from Mooncake (FAST'25)
+# Tracerator
 
-This directory contains the open-sourced production-derived request traces used in the Mooncake paper, plus tooling to understand them and generate scaled, parameter-controlled extensions that faithfully reproduce real enterprise LLM workload patterns.
+Tracerator is a trace generation and comparison tool for LLM serving experiments. It turns baseline workload traces into reproducible, parameter-controlled variants, packages them for replay/modeling pipelines, and provides a browser UI for comparing generated manifests.
 
-## The Problem This Solves
+The repository includes production-derived Mooncake FAST'25 traces as bundled baseline sources, but the project is Tracerator: the generator, UI, manifest/report tooling, source import path, and validation workflow around those traces.
 
-You need more trace volume or "what-if" variants (longer contexts, higher cache intensity, different mixes, longer duration) for the perf modeling tool, but the traces must behave like real Kimi production traffic:
+## What Tracerator Does
+
+Tracerator helps create more trace volume and "what-if" variants for performance modeling:
+
+- Longer or shorter contexts
+- Higher or lower prefix reuse/cache intensity
+- Different ISL distributions and workload mixes
+- Additional sessions and scaled request counts
+- Reproducible manifests for handoff and comparison
+
+The goal is to preserve workload properties that matter for LLM serving experiments:
 
 - Highly bursty arrivals (dozens of requests at the exact same millisecond)
 - Heavy-tailed prompt & generation lengths
 - Authentic KVCache reuse patterns: small number of extremely hot block prefixes (shared system prompts, agent scaffolds, popular RAG contexts) reused across thousands of requests; variable hit depths; session-like extensions that share long prefixes then branch on new user input.
 
-Generic generators (independent requests, uniform or simple normal lengths, Poisson arrivals, random or independent hash_ids) will produce completely wrong prefill/decode costs, cache hit ratios, queuing, and transfer behavior. Mooncake's published gains (up to 5× effective capacity) come from exploiting exactly these real patterns.
+Generic generators (independent requests, uniform/simple-normal lengths, Poisson arrivals, random or independent `hash_ids`) can produce misleading prefill/decode costs, cache hit ratios, queuing, and transfer behavior. Tracerator keeps source provenance and cache-prefix structure explicit so generated traces remain useful for replay and planning.
 
-## The Tool
+Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source traces, but they should not be treated as exact production workload profiles.
 
-The tool is called Tracerator. The graphical UI is the self-contained fancy page at `site/index.html` (with live estimates that update dynamically as you adjust the sliders).
+## Run Tracerator
+
+The graphical UI is the self-contained page at `site/index.html`, served by the Flask backend with live estimates that update as you adjust the controls.
 It has two browser pages: **Trace Generator** at `/` for creating trace outputs, and **Trace Comparison** at `/compare` for reviewing up to five manifest files in one report.
 
 To run (recommended):
@@ -28,8 +40,6 @@ To run (recommended):
 The launcher includes a pre-flight that checks for Docker and installs `jq` (highly recommended for inspecting the generated `trace.jsonl` files — every zip now contains a `README.txt` with usage examples).
 
 Open http://localhost:8000 in your browser.
-
-Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source traces, but they should not be treated as exact production workload profiles.
 
 ## UI (visual walkthrough)
 
@@ -79,9 +89,9 @@ python app.py
 
 Open http://localhost:8000.
 
-## Current bases (first collection)
+## Bundled Baseline Sources
 
-Three one-hour traces from real Kimi production traffic.
+Tracerator ships with three Mooncake-derived one-hour baseline traces from real Kimi production traffic. These are baseline sources for generation, not the whole project.
 
 | Workload       | Requests | Max Burst | Median Input / Output | Cache Personality                  |
 |----------------|----------|-----------|-----------------------|------------------------------------|
@@ -89,9 +99,9 @@ Three one-hour traces from real Kimi production traffic.
 | Tool & Agent   | 23,608   | 47        | 6.3k / 30             | Extremely high cache reuse, very bursty |
 | Synthetic      | 3,993    | 2         | 11.6k / 69            | Public long-context data + Poisson arrivals (lower sharing) |
 
-See the detailed [workload narrative and analysis](Mooncake/WORKLOAD_NARRATIVE.md) for deep statistics on burstiness, prefix cache behavior, length distributions, and why these patterns matter.
+See the detailed [workload narrative and analysis](Mooncake/WORKLOAD_NARRATIVE.md) for deep statistics on the bundled source traces: burstiness, prefix cache behavior, length distributions, and why these patterns matter.
 
-The original paper, traces, and system are available at the [Mooncake GitHub repo](https://github.com/kvcache-ai/Mooncake).
+The original Mooncake paper, traces, and system are available at the [Mooncake GitHub repo](https://github.com/kvcache-ai/Mooncake).
 
 The launcher also discovers optional local baseline collections when mounted:
 
@@ -111,7 +121,7 @@ scripts/fetch-baseline-traces.sh cc-weka-subagents
 
 ## Importing More Real-World Sources
 
-Tracerator is source-agnostic as long as the source can be mapped to the Mooncake/AIPerf replay schema. Current useful sources:
+Tracerator is source-agnostic as long as the source can be mapped to the replay schema used here: timestamped requests with input/output lengths and ordered prefix `hash_ids`. Current useful sources:
 
 - **Mooncake**: production-derived Kimi traces already included in this repo.
 - **RAGPulse**: public RAG workload trace from a university Q&A deployment ([paper](https://arxiv.org/html/2511.12979v1), [dataset](https://huggingface.co/datasets/flashserve/RAGPulse), [repo](https://github.com/flashserve/RAGPulse)). Its records include `timestamp`, `input_length`, `output_length`, `hash_ids`, and `session_id`; use component import mode because its hashes identify prompt components/documents rather than 512-token KV blocks.
@@ -120,7 +130,7 @@ Tracerator is source-agnostic as long as the source can be mapped to the Mooncak
 Importer examples:
 
 ```bash
-# Existing block-hash Mooncake-style trace
+# Existing block-hash trace
 python scripts/import_trace_source.py source.jsonl \
   --mode mooncake \
   --timestamp-unit milliseconds \
@@ -145,7 +155,7 @@ Each line in a trace:
 {"timestamp": <ms>, "input_length": <prompt tokens>, "output_length": <gen tokens>, "hash_ids": [<block hash ids for KVCache paged prefix> ... ]}
 ```
 
-The hash_ids are remapped block hashes. Matching prefixes across requests = KVCache hits (critical for the Mooncake disaggregated KVCache pool and scheduling efficacy).
+The `hash_ids` are remapped block hashes. Matching prefixes across requests represent KVCache hits, which are critical for cache-aware serving experiments.
 
 Integrity guarantees for generated/imported traces:
 
@@ -179,12 +189,12 @@ Integrity guarantees for generated/imported traces:
    https://github.com/discoposse/aiperf-toolkit
 
    Also see [Mooncake/trace_gen/README.md](Mooncake/trace_gen/README.md) (especially the section on the improved `reuse_bias` + `reuse_temperature` controls for predictable cache hit ratios).
-4. The receiving team can replay with the original Mooncake simulator, AIPerf (trace replay mode), or their modeling tool, knowing the workload characteristics and how they were derived from real traffic.
+4. The receiving team can replay with AIPerf, the original Mooncake simulator, or their modeling tool, knowing the workload characteristics and how they were derived from the selected source trace.
 
 ## References
 
-- Paper + original traces: https://github.com/kvcache-ai/Mooncake
-- The three traces correspond to the "Conversation", "Tool&Agent", and "Synthetic" workloads in §5.2.1 and Appendix A of the paper.
+- Tracerator includes baseline traces derived from Mooncake: https://github.com/kvcache-ai/Mooncake
+- The bundled Mooncake-derived traces correspond to the "Conversation", "Tool&Agent", and "Synthetic" workloads in §5.2.1 and Appendix A of the paper.
 
 Questions on the semantics of the traces or how to interpret reuse should start from the narrative and the paper (especially the scheduling algorithm and the definition of effective request capacity under TTFT/TBT SLOs).
 
@@ -192,7 +202,7 @@ Questions on the semantics of the traces or how to interpret reuse should start 
 
 This repository is licensed under the Apache License 2.0.
 
-The trace data is derived from the open-sourced dataset in the Mooncake project, which is also licensed under Apache-2.0. The generator code, UI, and supporting files are additional work released under the same license.
+The bundled trace data is derived from the open-sourced dataset in the Mooncake project, which is also licensed under Apache-2.0. The Tracerator generator code, UI, comparison report tooling, docs, and supporting files are additional work released under the same license.
 
 See the LICENSE file for full details.
 
@@ -202,7 +212,7 @@ Contributions are welcome. See CONTRIBUTING.md for guidelines.
 
 ## Citation
 
-If you use these traces or the generator in academic work, please cite the original paper:
+If you use the bundled Mooncake-derived traces in academic work, please cite the original paper:
 
 ```bibtex
 @article{qin2024mooncake,
