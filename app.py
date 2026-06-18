@@ -306,7 +306,7 @@ def generate_legacy_simulated_trace_data(params):
     return reqs, manifest
 
 def generate_wall_clock_win_trace_data(params):
-    """Generate a purpose-built AIPerf trace that emphasizes TTFT/wall-clock wins.
+    """Generate a purpose-built AIPerf trace that emphasizes persistent KV reuse.
 
     Shape:
     - many distinct long shared prefixes
@@ -414,20 +414,20 @@ def generate_wall_clock_win_trace_data(params):
         "params": params_with_defaults,
         "trace_scenario": {
             "id": WALL_CLOCK_WIN_SCENARIO,
-            "label": "Wall-clock win demo",
-            "purpose": "Broaden TTFT and end-to-end latency wins for prefix-cache tier comparisons.",
+            "label": "KV reuse stress scenario",
+            "purpose": "Exercise prefix-cache tier behavior with high fan-out, long shared prefixes, and delayed reuse.",
             "design": [
                 "mixed context distribution with a long-context tail",
                 "shared prefixes with short unique tails",
                 "high fan-out per unique prefix",
                 "many distinct prefixes so working set exceeds typical HBM KV budgets",
                 "reuse delayed by interleaving all prefixes between fan-out rounds",
-                "modest output length so prefill savings dominate wall-clock time",
+                "modest output length so prefill and KV effects are easier to observe",
             ],
         },
         "base_source": {
             "id": "synthetic-wall-clock-win",
-            "label": "Purpose-built wall-clock win trace",
+            "label": "Purpose-built KV reuse trace",
             "family": "Tracerator scenario",
             "path": "generated",
             "mode": "scenario",
@@ -464,7 +464,7 @@ def generate_wall_clock_win_trace_data(params):
             "timestamp_unit": "milliseconds",
             "aiperf_ready": True,
         },
-        "note": "Purpose-built trace for demonstrating wall-clock benefit from persistent prefix reuse while retaining a normal mixed context distribution: high reuse, varied shared-prefix lengths, large distinct-prefix working set, high fan-out, and modest OSL.",
+        "note": "Purpose-built trace for exercising persistent prefix reuse while retaining a normal mixed context distribution: high reuse, varied shared-prefix lengths, large distinct-prefix working set, high fan-out, and modest OSL.",
     }
     return reqs, manifest
 
@@ -568,6 +568,10 @@ def attach_kv_planning(reqs, manifest, params):
 @app.route('/')
 def serve_ui():
     return app.send_static_file('index.html')
+
+@app.route('/compare')
+def serve_compare():
+    return app.send_static_file('compare.html')
 
 @app.route('/sources', methods=['GET'])
 def sources():

@@ -7,6 +7,24 @@ from app import app, generate_trace_data
 
 
 class WallClockWinScenarioTests(unittest.TestCase):
+    def test_compare_page_route_serves_static_app(self):
+        client = app.test_client()
+        resp = client.get("/compare")
+
+        try:
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn(b"Trace Compare", resp.data)
+            self.assertIn(b"manifest-files", resp.data)
+            self.assertIn(b"vertical-chart", resp.data)
+            self.assertIn(b"download-chart", resp.data)
+            self.assertIn(b"Trace Generator", resp.data)
+            self.assertIn(b"Trace Comparison", resp.data)
+            self.assertIn(b"Print / save one-page PDF", resp.data)
+            self.assertIn(b"size: letter", resp.data)
+            self.assertIn(b"simulations for planning", resp.data)
+        finally:
+            resp.close()
+
     def test_scenario_trace_has_target_shape_and_block_integrity(self):
         reqs, manifest = generate_trace_data({
             "trace_scenario": "wall_clock_win",
@@ -45,6 +63,7 @@ class WallClockWinScenarioTests(unittest.TestCase):
             first_record = json.loads(zf.read("trace.jsonl").splitlines()[0])
 
         self.assertEqual(manifest["trace_scenario"]["id"], "wall_clock_win")
+        self.assertEqual(manifest["trace_scenario"]["label"], "KV reuse stress scenario")
         self.assertIn("hash_ids", first_record)
 
 

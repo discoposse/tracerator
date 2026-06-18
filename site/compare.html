@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trace Compare · Tracerator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .top-nav a { border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; transition: background 140ms ease, color 140ms ease, border-color 140ms ease; }
+    .compare-table { width: 100%; border-collapse: collapse; }
+    .compare-table th, .compare-table td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    .compare-table th { text-align: left; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .compare-table td { font-size: 12px; color: #0f172a; }
+    .bucket-row { display: grid; grid-template-columns: 76px minmax(180px, 1fr); gap: 12px; align-items: start; min-height: 36px; }
+    .trace-bar-row { display: grid; grid-template-columns: minmax(90px, 150px) minmax(120px, 1fr) 112px; gap: 8px; align-items: center; min-height: 22px; }
+    .track { height: 12px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .fill { height: 100%; border-radius: 4px; min-width: 0; }
+    @page { size: letter; margin: 0.22in; }
+    @media print {
+      html, body { width: 8.06in; min-height: 10.56in; overflow: hidden; }
+      body {
+        background: white !important;
+        color: #0f172a !important;
+        font-size: 10px !important;
+        line-height: 1.25 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      body > .max-w-6xl { max-width: none !important; width: 8.06in !important; margin: 0 !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .report-panel { border: none !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important; }
+      .report-panel > .flex:first-child { align-items: flex-start !important; gap: 8px !important; margin-bottom: 6px !important; }
+      .report-panel h2 { font-size: 20px !important; line-height: 1.1 !important; margin-top: 1px !important; }
+      #report-subtitle { font-size: 9px !important; margin-top: 2px !important; }
+      #legend { max-width: 3.6in !important; gap: 4px 10px !important; font-size: 9px !important; line-height: 1.1 !important; }
+      #summary-cards { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 6px !important; margin-bottom: 6px !important; }
+      #summary-cards > div { padding: 6px !important; border-radius: 6px !important; background: #f8fafc !important; }
+      #summary-cards .text-2xl { font-size: 17px !important; line-height: 1.05 !important; }
+      #summary-cards .text-\[10px\] { font-size: 8.5px !important; line-height: 1.15 !important; }
+      #vertical-chart svg { width: 100% !important; height: 2.25in !important; display: block !important; }
+      #shared-chart { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 4px 10px !important; }
+      .bucket-row { display: block !important; min-height: 0 !important; }
+      .bucket-row > div:first-child { margin-bottom: 2px !important; padding-top: 0 !important; font-size: 9px !important; line-height: 1.1 !important; }
+      .trace-bar-row { grid-template-columns: minmax(70px, 1fr) 74px !important; min-height: 14px !important; gap: 4px !important; font-size: 8.5px !important; line-height: 1.05 !important; }
+      .trace-bar-row > div:first-child { display: none !important; }
+      .track { height: 8px !important; }
+      .compare-table th, .compare-table td { padding: 3px 5px !important; font-size: 8.5px !important; line-height: 1.1 !important; }
+      .compare-table th { font-size: 7.5px !important; }
+      .report-note { font-size: 7.5px !important; line-height: 1.15 !important; margin-top: 4px !important; }
+      .border-t { padding-top: 6px !important; margin-bottom: 6px !important; }
+      .border-t .mb-3 { margin-bottom: 4px !important; }
+      .uppercase, [class*="uppercase"] { letter-spacing: .035em !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="max-w-6xl mx-auto p-8">
+    <nav class="top-nav flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+      <div>
+        <h1 class="text-4xl font-semibold tracking-tight">Trace Compare</h1>
+        <p class="text-slate-600 mt-1">Compare up to five generated trace manifests in one executive-ready view.</p>
+      </div>
+      <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1">
+        <a href="/" class="text-slate-600 hover:text-slate-950 hover:bg-slate-50">Trace Generator</a>
+        <a href="/compare" class="bg-slate-900 text-white">Trace Comparison</a>
+      </div>
+    </nav>
+
+    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 no-print">
+      <div class="flex flex-wrap items-end gap-3">
+        <div class="grow min-w-64">
+          <label for="manifest-files" class="text-sm font-medium text-slate-600">Manifest files</label>
+          <input id="manifest-files" type="file" accept="application/json,.json" multiple class="mt-2 block w-full border border-slate-300 rounded px-2 py-2 text-sm bg-white">
+          <div class="text-[10px] text-slate-400 mt-1">Select 1-5 manifest.json files. Files are parsed locally in this browser.</div>
+        </div>
+        <button id="export-report" class="px-4 py-2.5 bg-slate-900 hover:bg-black active:bg-slate-950 text-white text-sm font-medium rounded-xl transition disabled:opacity-40" disabled>Export report HTML</button>
+        <button id="print-report" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-sm font-medium rounded-xl transition disabled:opacity-40" disabled>Print / save one-page PDF</button>
+        <button id="clear-traces" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-sm font-medium rounded-xl transition disabled:opacity-40" disabled>Clear</button>
+      </div>
+      <div id="load-errors" class="hidden mt-3 text-xs text-rose-600"></div>
+    </div>
+
+    <div id="empty-state" class="bg-white border border-slate-200 rounded-xl p-10 text-center">
+      <div class="text-sm font-medium text-slate-700">No manifests loaded</div>
+      <div class="text-xs text-slate-400 mt-1">Upload generated `manifest.json` files to build a shared distribution graph and comparison report.</div>
+    </div>
+
+    <div id="report" class="hidden report-panel bg-white border border-slate-200 rounded-xl p-5">
+      <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+        <div>
+          <div class="text-xs uppercase tracking-wider text-slate-500">Trace comparison report</div>
+          <h2 class="text-2xl font-semibold mt-1">ISL Distribution and Workload Shape</h2>
+          <div id="report-subtitle" class="text-xs text-slate-400 mt-1"></div>
+        </div>
+        <div id="legend" class="flex flex-wrap justify-end gap-x-4 gap-y-2 text-xs"></div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5" id="summary-cards"></div>
+
+      <div class="border-t border-slate-100 pt-4 mb-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+          <div>
+            <div class="text-xs uppercase tracking-wider text-slate-500">ISL distribution comparison</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Grouped vertical bars make cross-trace bucket differences easier to scan</div>
+          </div>
+          <button id="download-chart" class="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-xs font-medium rounded-lg transition no-print">Download chart PNG</button>
+        </div>
+        <div id="vertical-chart" class="overflow-x-auto"></div>
+      </div>
+
+      <div class="border-t border-slate-100 pt-4 mb-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+          <div>
+            <div class="text-xs uppercase tracking-wider text-slate-500">Shared ISL distribution</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">Detailed bucket-by-bucket bars from each manifest's generated trace output</div>
+          </div>
+          <div id="trace-count" class="font-mono text-xs text-slate-500"></div>
+        </div>
+        <div id="shared-chart" class="space-y-3"></div>
+      </div>
+
+      <div class="border-t border-slate-100 pt-4">
+        <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">Comparison breakdown</div>
+        <div class="overflow-auto">
+          <table class="compare-table text-xs">
+            <thead id="breakdown-head"></thead>
+            <tbody id="breakdown-body"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="report-note mt-4 text-[10px] text-slate-400 leading-relaxed">
+        Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source manifests, but do not necessarily represent exact production workload profiles.
+      </div>
+    </div>
+    <div class="no-print mt-8 text-xs text-slate-400 leading-relaxed">
+      Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source manifests, but do not necessarily represent exact production workload profiles.
+    </div>
+  </div>
+
+  <script>
+    const ISL_BINS = ['<=1K', '1-2K', '2-4K', '4-8K', '8-16K', '16-32K', '32-64K', '64-128K', '>128K'];
+    const COLORS = ['#0f172a', '#0f766e', '#b45309', '#6d28d9', '#be123c'];
+    let traces = [];
+
+    function esc(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[ch]));
+    }
+
+    function number(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmtInt(value) {
+      const n = number(value);
+      return n === null ? 'n/a' : Math.round(n).toLocaleString();
+    }
+
+    function fmtPct(value) {
+      const n = number(value);
+      if (n === null) return 'n/a';
+      return (n * 100).toFixed(1) + '%';
+    }
+
+    function fmtDuration(ms) {
+      const n = number(ms);
+      if (n === null) return 'n/a';
+      const seconds = n / 1000;
+      if (seconds < 120) return seconds.toFixed(1) + 's';
+      if (seconds < 7200) return (seconds / 60).toFixed(1) + 'm';
+      return (seconds / 3600).toFixed(2) + 'h';
+    }
+
+    function fmtGiB(value) {
+      const n = number(value);
+      if (n === null) return 'n/a';
+      if (n >= 100) return n.toFixed(0) + ' GiB';
+      if (n >= 10) return n.toFixed(1) + ' GiB';
+      return n.toFixed(3) + ' GiB';
+    }
+
+    function getOutputStats(manifest) {
+      return manifest.production_manifest && manifest.production_manifest.output_stats
+        ? manifest.production_manifest.output_stats
+        : {};
+    }
+
+    function metric(manifest, key) {
+      const outputStats = getOutputStats(manifest);
+      if (manifest[key] !== undefined) return manifest[key];
+      if (outputStats[key] !== undefined) return outputStats[key];
+      if (manifest.base_stats && manifest.base_stats[key] !== undefined) return manifest.base_stats[key];
+      return null;
+    }
+
+    function pickName(file, manifest, index) {
+      const scenario = manifest.trace_scenario && manifest.trace_scenario.label;
+      const source = manifest.base_source && manifest.base_source.label;
+      const base = manifest.production_manifest && manifest.production_manifest.base_trace;
+      const fallback = file.name.replace(/\.json$/i, '') || `Trace ${index + 1}`;
+      return scenario || source || base || fallback;
+    }
+
+    function contextNote(trace) {
+      const dist = trace.isl;
+      const shortShare = (dist['<=1K']?.share || 0) + (dist['1-2K']?.share || 0) + (dist['2-4K']?.share || 0);
+      const midShare = (dist['8-16K']?.share || 0) + (dist['16-32K']?.share || 0) + (dist['32-64K']?.share || 0);
+      const longShare = (dist['64-128K']?.share || 0) + (dist['>128K']?.share || 0);
+      if (longShare >= 0.25) return 'Long-context heavy with meaningful prefill pressure.';
+      if (midShare >= 0.45) return 'Balanced enterprise range with useful KV reuse pressure.';
+      if (shortShare >= 0.45) return 'Shorter prompt mix; TTFT savings may be less dominant.';
+      return 'Mixed context profile.';
+    }
+
+    function normalizeTrace(file, manifest, index) {
+      const isl = metric(manifest, 'isl_distribution') || {};
+      const kv = manifest.kv_cache_planning || {};
+      const scenario = manifest.trace_scenario || {};
+      return {
+        fileName: file.name,
+        name: pickName(file, manifest, index),
+        color: COLORS[index],
+        manifest,
+        isl,
+        requests: metric(manifest, 'n_requests'),
+        durationMs: metric(manifest, 'duration_ms'),
+        avgRps: metric(manifest, 'avg_rps'),
+        medianInput: metric(manifest, 'median_input'),
+        p95Input: metric(manifest, 'p95_input'),
+        medianOutput: metric(manifest, 'median_output'),
+        hitRatio: metric(manifest, 'approx_cache_hit_ratio'),
+        reusedFraction: manifest.reused_token_fraction,
+        uniqueBlocks: metric(manifest, 'unique_block_ids'),
+        maxConcurrency: metric(manifest, 'max_concurrency'),
+        workingSetGiB: kv.working_set_gib,
+        reuseCeiling: kv.reuse_ceiling,
+        source: manifest.base_source && manifest.base_source.label,
+        scenario: scenario.label || scenario.id || 'Standard generated trace',
+      };
+    }
+
+    async function loadFiles(files) {
+      const selected = Array.from(files).slice(0, 5);
+      const errors = [];
+      const loaded = [];
+      for (const [index, file] of selected.entries()) {
+        try {
+          const text = await file.text();
+          const manifest = JSON.parse(text);
+          if (!manifest || typeof manifest !== 'object' || !metric(manifest, 'isl_distribution')) {
+            throw new Error('manifest does not include isl_distribution');
+          }
+          loaded.push(normalizeTrace(file, manifest, index));
+        } catch (err) {
+          errors.push(`${file.name}: ${err.message}`);
+        }
+      }
+      traces = loaded;
+      renderErrors(errors);
+      render();
+    }
+
+    function renderErrors(errors) {
+      const el = document.getElementById('load-errors');
+      if (!errors.length) {
+        el.classList.add('hidden');
+        el.innerHTML = '';
+        return;
+      }
+      el.classList.remove('hidden');
+      el.innerHTML = errors.map(esc).join('<br>');
+    }
+
+    function render() {
+      const hasTraces = traces.length > 0;
+      document.getElementById('empty-state').classList.toggle('hidden', hasTraces);
+      document.getElementById('report').classList.toggle('hidden', !hasTraces);
+      ['export-report', 'print-report', 'clear-traces'].forEach(id => {
+        document.getElementById(id).disabled = !hasTraces;
+      });
+      if (!hasTraces) return;
+      document.getElementById('report-subtitle').textContent = `${traces.length} manifest${traces.length === 1 ? '' : 's'} loaded · ${new Date().toLocaleDateString()}`;
+      document.getElementById('trace-count').textContent = traces.length + ' trace' + (traces.length === 1 ? '' : 's');
+      renderLegend();
+      renderCards();
+      renderVerticalChart();
+      renderSharedChart();
+      renderBreakdown();
+    }
+
+    function renderLegend() {
+      document.getElementById('legend').innerHTML = traces.map(trace => `
+        <div class="flex items-center gap-2">
+          <span class="inline-block w-3 h-3 rounded-sm" style="background:${trace.color}"></span>
+          <span class="font-medium text-slate-700">${esc(trace.name)}</span>
+        </div>
+      `).join('');
+    }
+
+    function renderCards() {
+      const totalReqs = traces.reduce((acc, trace) => acc + (number(trace.requests) || 0), 0);
+      const bestReuse = Math.max(...traces.map(trace => number(trace.reusedFraction ?? trace.hitRatio) || 0));
+      const maxP95 = Math.max(...traces.map(trace => number(trace.p95Input) || 0));
+      const maxWorkingSet = Math.max(...traces.map(trace => number(trace.workingSetGiB) || 0));
+      const cards = [
+        ['Traces', traces.length.toLocaleString(), 'Manifests in report'],
+        ['Total requests', fmtInt(totalReqs), 'Combined request count'],
+        ['Best reuse', fmtPct(bestReuse), 'Highest reused/cache ratio'],
+        ['Largest working set', fmtGiB(maxWorkingSet), maxWorkingSet ? 'KV planning estimate' : 'KV planning unavailable'],
+        ['Largest p95 ISL', fmtInt(maxP95), 'Longest p95 input length'],
+      ];
+      document.getElementById('summary-cards').innerHTML = cards.map(([label, value, sub]) => `
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+          <div class="text-[10px] uppercase tracking-wider text-slate-500">${esc(label)}</div>
+          <div class="mt-1 text-2xl font-semibold tabular-nums">${esc(value)}</div>
+          <div class="text-[10px] text-slate-400 mt-1">${esc(sub)}</div>
+        </div>
+      `).join('');
+    }
+
+    function renderVerticalChart() {
+      const width = 980;
+      const legendItems = [];
+      let legendX = 58;
+      let legendY = 12;
+      let legendRows = 1;
+      traces.forEach(trace => {
+        const itemWidth = Math.max(150, Math.min(330, trace.name.length * 7 + 36));
+        if (legendX + itemWidth > width - 24) {
+          legendX = 58;
+          legendY += 18;
+          legendRows += 1;
+        }
+        legendItems.push({ trace, x: legendX, y: legendY });
+        legendX += itemWidth;
+      });
+      const height = 430 + Math.max(0, legendRows - 1) * 18;
+      const margin = { top: 26 + legendRows * 18, right: 24, bottom: 74, left: 58 };
+      const plotW = width - margin.left - margin.right;
+      const plotH = height - margin.top - margin.bottom;
+      const maxShare = Math.max(0.05, ...traces.flatMap(trace => ISL_BINS.map(name => (trace.isl[name] && trace.isl[name].share) || 0)));
+      const yMax = Math.min(1, Math.ceil(maxShare * 10) / 10);
+      const bucketW = plotW / ISL_BINS.length;
+      const groupGap = 10;
+      const barGap = 2;
+      const barW = Math.max(3, Math.min(18, (bucketW - groupGap) / traces.length - barGap));
+      const y = share => margin.top + plotH - (share / yMax) * plotH;
+      const gridTicks = [0, 0.25, 0.5, 0.75, 1].filter(v => v <= yMax);
+      if (!gridTicks.includes(yMax)) gridTicks.push(yMax);
+
+      const grid = gridTicks.map(tick => {
+        const yy = y(tick);
+        return `
+          <line x1="${margin.left}" y1="${yy}" x2="${width - margin.right}" y2="${yy}" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="${margin.left - 10}" y="${yy + 4}" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#64748b">${(tick * 100).toFixed(0)}%</text>`;
+      }).join('');
+
+      const bars = ISL_BINS.map((name, bucketIndex) => {
+        const groupX = margin.left + bucketIndex * bucketW;
+        const barsW = traces.length * barW + Math.max(0, traces.length - 1) * barGap;
+        const startX = groupX + (bucketW - barsW) / 2;
+        const labelX = groupX + bucketW / 2;
+        const bucketBars = traces.map((trace, traceIndex) => {
+          const share = number(trace.isl[name] && trace.isl[name].share) || 0;
+          const h = Math.max(0, (share / yMax) * plotH);
+          const x = startX + traceIndex * (barW + barGap);
+          const yy = margin.top + plotH - h;
+          return `
+            <rect x="${x.toFixed(2)}" y="${yy.toFixed(2)}" width="${barW.toFixed(2)}" height="${h.toFixed(2)}" rx="2" fill="${trace.color}">
+              <title>${esc(trace.name)} ${esc(name)}: ${fmtPct(share)}</title>
+            </rect>`;
+        }).join('');
+        return `
+          ${bucketBars}
+          <text x="${labelX}" y="${height - 35}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#475569">${esc(name)}</text>`;
+      }).join('');
+
+      const legend = legendItems.map(({ trace, x, y }) => {
+        return `
+          <rect x="${x}" y="${y}" width="10" height="10" rx="2" fill="${trace.color}"/>
+          <text x="${x + 16}" y="${y + 9}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11" font-weight="600" fill="#334155">${esc(trace.name)}</text>`;
+      }).join('');
+
+      document.getElementById('vertical-chart').innerHTML = `
+        <svg id="vertical-chart-svg" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grouped vertical ISL distribution chart">
+          <rect width="100%" height="100%" fill="#ffffff"/>
+          ${legend}
+          <text x="${margin.left}" y="${height - 8}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11" fill="#64748b">Input sequence length bucket</text>
+          <text x="18" y="${margin.top + 16}" transform="rotate(-90 18 ${margin.top + 16})" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11" fill="#64748b">Share of trace</text>
+          ${grid}
+          <line x1="${margin.left}" y1="${margin.top + plotH}" x2="${width - margin.right}" y2="${margin.top + plotH}" stroke="#94a3b8" stroke-width="1"/>
+          ${bars}
+        </svg>`;
+    }
+
+    function renderSharedChart() {
+      const maxShare = Math.max(0.0001, ...traces.flatMap(trace => ISL_BINS.map(name => (trace.isl[name] && trace.isl[name].share) || 0)));
+      document.getElementById('shared-chart').innerHTML = ISL_BINS.map(name => `
+        <div class="bucket-row text-xs">
+          <div class="font-mono font-medium text-slate-600 pt-1">${esc(name)}</div>
+          <div class="space-y-1">
+            ${traces.map(trace => {
+              const bucket = trace.isl[name] || { count: 0, share: 0 };
+              const share = number(bucket.share) || 0;
+              const width = Math.max(0, Math.min(100, (share / maxShare) * 100));
+              return `
+                <div class="trace-bar-row">
+                  <div class="truncate text-slate-600" title="${esc(trace.name)}">${esc(trace.name)}</div>
+                  <div class="track" title="${esc(trace.name)} ${esc(name)}: ${fmtInt(bucket.count)} requests, ${fmtPct(share)}">
+                    <div class="fill" style="width:${width}%; background:${trace.color}"></div>
+                  </div>
+                  <div class="font-mono text-right text-slate-600">${fmtInt(bucket.count)} <span class="text-slate-400">(${fmtPct(share)})</span></div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderBreakdown() {
+      document.getElementById('breakdown-head').innerHTML = `
+        <tr>
+          <th>Aspect</th>
+          ${traces.map(trace => `<th>${esc(trace.name)}</th>`).join('')}
+          <th>Notes</th>
+        </tr>`;
+      const rows = [
+        ['# Requests', trace => fmtInt(trace.requests), 'Higher request counts create stronger queueing and throughput signal.'],
+        ['Duration / arrival shape', trace => `${fmtDuration(trace.durationMs)} · ${fmtInt(trace.maxConcurrency)} peak`, 'Fixed timestamps remain replayable; peak concurrency frames burst pressure.'],
+        ['Input length', trace => `median ${fmtInt(trace.medianInput)} · p95 ${fmtInt(trace.p95Input)}`, 'Longer ISL increases prefill cost and TTFT leverage.'],
+        ['Output length', trace => `median ${fmtInt(trace.medianOutput)}`, 'Modest OSL makes prefill effects translate more directly to end-to-end latency.'],
+        ['Prefix reuse', trace => `${fmtPct(trace.reusedFraction ?? trace.hitRatio)} reuse · ${fmtPct(trace.hitRatio)} cache`, 'Higher reused-prefix fraction broadens TTFT and cache-tier wins.'],
+        ['KV working set', trace => `${fmtGiB(trace.workingSetGiB)} · ceiling ${fmtPct(trace.reuseCeiling)}`, 'Working sets larger than HBM make eviction/reload behavior visible.'],
+        ['Unique blocks', trace => fmtInt(trace.uniqueBlocks), 'More distinct blocks increase cache pressure and reduce trivial all-in-HBM cases.'],
+        ['Context behavior', trace => contextNote(trace), 'Summarized from ISL bucket mass.'],
+        ['Source / scenario', trace => `${trace.source || 'generated'} · ${trace.scenario}`, 'Manifest provenance for report traceability.'],
+      ];
+      document.getElementById('breakdown-body').innerHTML = rows.map(([aspect, getter, note]) => `
+        <tr>
+          <td class="font-medium text-slate-700">${esc(aspect)}</td>
+          ${traces.map(trace => `<td>${esc(getter(trace))}</td>`).join('')}
+          <td class="text-slate-500">${esc(note)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function exportReport() {
+      if (!traces.length) return;
+      const report = document.getElementById('report').cloneNode(true);
+      report.classList.remove('hidden');
+      const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tracerator Trace Compare Report</title>
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <style>${document.querySelector('style').textContent}</style>
+</head>
+<body class="bg-white text-slate-900">
+  <div class="max-w-6xl mx-auto p-8">
+    ${report.outerHTML}
+  </div>
+</body>
+</html>`;
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'trace-compare-report.html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadChartImage() {
+      const svg = document.getElementById('vertical-chart-svg');
+      if (!svg) return;
+      const serializer = new XMLSerializer();
+      const svgText = serializer.serializeToString(svg);
+      const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const image = new Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = svg.viewBox.baseVal.width || svg.width.baseVal.value;
+        canvas.height = svg.viewBox.baseVal.height || svg.height.baseVal.value;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(blob => {
+          if (!blob) return;
+          const pngUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = pngUrl;
+          a.download = 'trace-compare-isl-distribution.png';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(pngUrl);
+        }, 'image/png');
+      };
+      image.src = url;
+    }
+
+    document.getElementById('manifest-files').addEventListener('change', event => loadFiles(event.target.files));
+    document.getElementById('export-report').addEventListener('click', exportReport);
+    document.getElementById('download-chart').addEventListener('click', downloadChartImage);
+    document.getElementById('print-report').addEventListener('click', () => window.print());
+    document.getElementById('clear-traces').addEventListener('click', () => {
+      traces = [];
+      document.getElementById('manifest-files').value = '';
+      renderErrors([]);
+      render();
+    });
+  </script>
+</body>
+</html>

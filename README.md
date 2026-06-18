@@ -15,6 +15,7 @@ Generic generators (independent requests, uniform or simple normal lengths, Pois
 ## The Tool
 
 The tool is called Tracerator. The graphical UI is the self-contained fancy page at `site/index.html` (with live estimates that update dynamically as you adjust the sliders).
+It has two browser pages: **Trace Generator** at `/` for creating trace outputs, and **Trace Comparison** at `/compare` for reviewing up to five manifest files in one report.
 
 To run (recommended):
 
@@ -28,9 +29,11 @@ The launcher includes a pre-flight that checks for Docker and installs `jq` (hig
 
 Open http://localhost:8000 in your browser.
 
+Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source traces, but they should not be treated as exact production workload profiles.
+
 ## UI (visual walkthrough)
 
-![Full Tracerator UI](assets/01-tracerator-overview.jpg)
+![Trace Generator overview](assets/01-tracerator-overview.jpg)
 
 ### Baseline trace source
 Pick the starting pattern from the Baseline trace source dropdown.
@@ -55,6 +58,13 @@ Four large cards give instant client-side approximations that mirror the backend
 Download the full zip (trace + manifest + README) or preview the manifest + first sample lines directly in the browser.
 
 ![Manifest + sample preview](assets/05-tracerator-manifest-preview.jpg)
+
+### Trace Compare
+Use the **Trace Comparison** nav link, or open `/compare`, to load up to five generated `manifest.json` files into a shared ISL distribution graph, colored legend, KPI summary, and executive comparison table. The comparison page can export a standalone HTML report, download the vertical comparison chart as a PNG, or use browser print/save-as-PDF for a formatted single-page report.
+
+![Trace Comparison report](assets/06-trace-comparison-report.jpg)
+
+See [docs/TRACE_UI.md](docs/TRACE_UI.md) for a compact guide to the two-page UI and report export flow.
 
 The docker-compose uses a bind mount so the containerized app always serves the live `site/index.html` as its UI (refresh browser after edits; restart container for .py changes).
 
