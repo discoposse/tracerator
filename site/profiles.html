@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trace Profiles · Tracerator</title>
+  <link rel="stylesheet" href="/carbon.css">
+  <link rel="stylesheet" href="/css/workspace.css">
+</head>
+<body class="workspace-body">
+  <div class="workspace-shell">
+    <nav class="workspace-nav">
+      <div class="nav-links">
+        <a href="/">Workspace</a>
+        <a href="/profiles" class="active">Profiles</a>
+        <a href="/compare">Compare</a>
+        <a href="/study">Study</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <h1>Trace Profiles</h1>
+      <p class="tagline">
+        The built-in workload deck: provenance, replay readiness, shape, and pressure signals on one collectible face.
+      </p>
+    </header>
+
+    <div class="flex-row" style="justify-content:space-between;align-items:flex-end;">
+      <div>
+        <p class="section-label">Built-in trace deck</p>
+        <p class="muted" style="max-width:44rem;line-height:1.5;">
+          Every source gets a card, including reference-only datasets whose payload or cache schema is not locally replayable. The fingerprint is generated from its workload shape.
+        </p>
+      </div>
+      <span class="status-chip" id="trace-deck-count">Loading</span>
+    </div>
+    <p class="trace-deck-status muted mono" id="trace-deck-status" aria-live="polite">Reading trace metadata...</p>
+    <section id="profile-grid" class="profile-grid" aria-live="polite"></section>
+    <noscript>
+      <p>Enable JavaScript to view cards for Mooncake Conversation, Mooncake Tool &amp; Agent, SageServe Code Distribution (Enterprise code workload), SageServe Conversation Distribution (Enterprise conversation workload), and KV Reuse Stress Scenario.</p>
+    </noscript>
+
+    <section class="panel mt-4">
+      <p class="section-label">Figure 3</p>
+      <h2 style="margin:0;font-size:1.35rem;letter-spacing:-0.02em;">Benchmarking workflow</h2>
+      <figure class="figure-frame mt-3">
+        <img src="/benchmarking_workflow.png" alt="Figure 3: Benchmarking workflow. Capture traces, Normalize schema, Run baselines, Replay segments, Set thresholds, Sweep sensitivity, and Output sizing and cost model.">
+      </figure>
+      <p class="fig-caption">Benchmarking starts with representative traces and ends with sizing guidance that can survive configuration, cache-tier, and network sensitivity changes.</p>
+    </section>
+
+    <section class="panel mt-4">
+      <p class="section-label">Efficiency model</p>
+      <h2 style="margin:0;font-size:1.35rem;letter-spacing:-0.02em;">Effective efficiency</h2>
+      <p class="muted mt-2" style="max-width:40rem;line-height:1.5;">
+        Successful output volume only tells part of the story. The useful throughput signal has to be divided by all of the system costs that consume the run envelope.
+      </p>
+      <figure class="figure-frame mt-3">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-label="Effective efficiency equals successful outputs divided by accelerator time, memory pressure, network, storage I/O, and power.">
+          <style>
+            .title { font: 700 36px IBM Plex Sans, Helvetica Neue, Arial, sans-serif; fill: #0b1220; }
+            .sub { font: 500 18px IBM Plex Sans, Helvetica Neue, Arial, sans-serif; fill: #5c6b7a; }
+            .label { font: 700 20px IBM Plex Sans, Helvetica Neue, Arial, sans-serif; fill: #0b1220; }
+            .mono { font: 600 17px IBM Plex Mono, SFMono-Regular, Consolas, monospace; fill: #393939; }
+            .small { font: 500 15px IBM Plex Sans, Helvetica Neue, Arial, sans-serif; fill: #5c6b7a; }
+            .ink { fill: #0b1220; }
+            .bar { fill: #161616; }
+            .field { fill: #f4f4f4; stroke: #c9d2dc; stroke-width: 2; }
+            .line { stroke: #0b1220; stroke-width: 4; }
+            .thin { stroke: #8d8d8d; stroke-width: 2; }
+          </style>
+          <rect width="1200" height="560" fill="#ffffff"/>
+          <text x="64" y="70" class="title">Effective Efficiency</text>
+          <text x="64" y="102" class="sub">Useful work divided by the full cost envelope</text>
+
+          <text x="72" y="194" class="label">successful outputs</text>
+          <rect x="72" y="224" width="960" height="64" class="bar"/>
+          <text x="96" y="264" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="23" font-weight="700" fill="#ffffff">completed, valid, delivered responses</text>
+          <text x="1060" y="264" class="mono" text-anchor="middle">numerator</text>
+
+          <line x1="64" y1="336" x2="1136" y2="336" class="line"/>
+          <text x="72" y="390" class="label">system cost envelope</text>
+
+          <g transform="translate(72 418)">
+            <rect width="186" height="68" class="field"/>
+            <rect width="12" height="68" class="ink"/>
+            <text x="28" y="30" class="mono">accelerator</text>
+            <text x="28" y="53" class="small">time</text>
+          </g>
+          <text x="280" y="462" class="mono">+</text>
+          <g transform="translate(318 418)">
+            <rect width="186" height="68" class="field"/>
+            <rect width="12" height="68" class="ink"/>
+            <text x="28" y="30" class="mono">memory</text>
+            <text x="28" y="53" class="small">pressure</text>
+          </g>
+          <text x="526" y="462" class="mono">+</text>
+          <g transform="translate(564 418)">
+            <rect width="142" height="68" class="field"/>
+            <rect width="12" height="68" class="ink"/>
+            <text x="28" y="42" class="mono">network</text>
+          </g>
+          <text x="728" y="462" class="mono">+</text>
+          <g transform="translate(766 418)">
+            <rect width="162" height="68" class="field"/>
+            <rect width="12" height="68" class="ink"/>
+            <text x="28" y="30" class="mono">storage</text>
+            <text x="28" y="53" class="small">I/O</text>
+          </g>
+          <text x="950" y="462" class="mono">+</text>
+          <g transform="translate(988 418)">
+            <rect width="118" height="68" class="field"/>
+            <rect width="12" height="68" class="ink"/>
+            <text x="28" y="42" class="mono">power</text>
+          </g>
+
+          <line x1="72" y1="510" x2="1106" y2="510" class="thin"/>
+          <text x="590" y="538" class="small" text-anchor="middle">When any denominator bucket grows, effective efficiency falls even if raw accelerator utilization looks healthy.</text>
+        </svg>
+      </figure>
+      <p class="fig-caption">Effective efficiency drops as memory, network, storage I/O, and power costs expand around accelerator time.</p>
+    </section>
+
+    <section class="panel mt-4">
+      <p class="section-label">Figure 2</p>
+      <h2 style="margin:0;font-size:1.35rem;letter-spacing:-0.02em;">KV cache hierarchy latencies</h2>
+      <figure class="figure-frame mt-3">
+        <img src="/kv_hierarchy_latency.png" alt="Log-scale bar chart showing GPU HBM at about 0.001 ms, CPU DRAM at about 0.05 ms, local flash at about 1 ms, and shared storage at about 10 ms.">
+      </figure>
+      <p class="fig-caption">Retrieval speed versus recompute becomes the dominant decision once state leaves HBM.</p>
+    </section>
+  </div>
+
+  <script src="/js/trace_card.js"></script>
+  <script src="/js/profiles.js"></script>
+</body>
+</html>

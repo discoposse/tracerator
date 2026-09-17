@@ -3,9 +3,11 @@
 
 import json
 import random
+import re
 import sys
 import zipfile
 from collections import Counter
+from datetime import datetime
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -13,7 +15,29 @@ from flask import Flask, request, send_file, jsonify
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "Mooncake" / "trace_gen"))
 from generator import analyze_trace, generate_extended  # noqa: E402
-from trace_sources import load_source_records, source_by_id, sources_for_api  # noqa: E402
+from trace_sources import (  # noqa: E402
+    LIGHTINFERRA_GOLDEN_SOURCE_ID,
+    canonicalize_source_id,
+    is_lightinferra_golden_source,
+    load_source_records,
+    source_by_id,
+    sources_for_api,
+)
+from trace_cards import build_run_trace_card, list_builtin_trace_cards  # noqa: E402
+from aiperf_results import normalize_aiperf_run  # noqa: E402
+from aiperf_runner import aiperf_status, validate_generated_trace  # noqa: E402
+from aiperf_datasets import (  # noqa: E402
+    convert_mooncake_records,
+    dataset_file_name,
+    dataset_style_manifest,
+    list_aiperf_dataset_styles,
+    list_aiperf_public_datasets,
+    normalize_aiperf_dataset_style,
+    write_aiperf_dataset,
+)
+from inspect_enrich import enrich_run  # noqa: E402
+from replay_scene import build_replay_scene  # noqa: E402
+from sizing import build_sizing_study, sizing_catalog  # noqa: E402
 from kv_cache_planning import (  # noqa: E402
     DEFAULT_CAPACITY_GIB,
     model_options,
@@ -21,8 +45,26 @@ from kv_cache_planning import (  # noqa: E402
     plan_kv_cache,
     precision_options,
 )
+from lightinferra_golden import (  # noqa: E402
+    DEFAULT_LOGICAL_BLOCK_TOKENS,
+    DEFAULT_OUTPUT_TOKENS,
+    DEFAULT_PHYSICAL_PAGE_TOKENS,
+    DEFAULT_RESUME_TAIL_TOKENS,
+    DEFAULT_SEED as LIGHTINFERRA_DEFAULT_SEED,
+    GOLDEN_MODELS,
+    build_case as build_lightinferra_case,
+)
+import storage  # noqa: E402
+from study import (  # noqa: E402
+    build_run_study_slice,
+    build_study_context,
+    chat_with_study,
+    list_providers,
+    summarize_study,
+)
 
 app = Flask(__name__, static_folder='site', static_url_path='')
+storage.init_db()
 
 # Simple base stats for simulation (from real patterns, but small for demo)
 BASES = {
@@ -50,9 +92,17 @@ ISL_PROFILES = {
     'long_context': {'<=1K': 0.01, '1-2K': 0.02, '2-4K': 0.04, '4-8K': 0.08, '8-16K': 0.16, '16-32K': 0.25, '32-64K': 0.25, '64-128K': 0.15, '>128K': 0.04},
     'short_chat': {'<=1K': 0.18, '1-2K': 0.24, '2-4K': 0.28, '4-8K': 0.18, '8-16K': 0.08, '16-32K': 0.03, '32-64K': 0.01, '64-128K': 0.0, '>128K': 0.0},
 }
+ISL_PROFILE_LABELS = {
+    'empirical': 'Empirical source',
+    'rag': 'RAG-like 2K-16K',
+    'balanced': 'Balanced enterprise',
+    'long_context': 'Long-context stress',
+    'short_chat': 'Short-chat skew',
+}
 
 BLOCK_SIZE = 512
 WALL_CLOCK_WIN_SCENARIO = "wall_clock_win"
+LIGHTINFERRA_GOLDEN_SOURCE = LIGHTINFERRA_GOLDEN_SOURCE_ID
 WALL_CLOCK_WIN_ISL_SHARES = {
     '<=1K': 0.01,
     '1-2K': 0.02,
@@ -108,8 +158,8 @@ def render_isl_distribution_svg(distribution, title="ISL distribution"):
         w = int((share / max_share) * bar_w) if share > 0 else 0
         rows.append(f'''
   <text x="24" y="{y + 19}" class="label">{escape(name)}</text>
-  <rect x="{left}" y="{y}" width="{bar_w}" height="22" rx="4" class="track"/>
-  <rect x="{left}" y="{y}" width="{w}" height="22" rx="4" class="bar"/>
+  <rect x="{left}" y="{y}" width="{bar_w}" height="22" class="track"/>
+  <rect x="{left}" y="{y}" width="{w}" height="22" class="bar"/>
   <text x="{left + bar_w + 18}" y="{y + 17}" class="value">{count:,} ({share * 100:.1f}%)</text>''')
     return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
   <style>
@@ -127,6 +177,22 @@ def render_isl_distribution_svg(distribution, title="ISL distribution"):
 {''.join(rows)}
 </svg>
 '''
+
+def filename_slug(value):
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
+    return slug or "trace"
+
+def download_timestamp():
+    return datetime.now().strftime("%Y%m%d%H%M")
+
+def trace_download_name(manifest, params, extension):
+    source = (manifest.get("base_source") or {}).get("label")
+    scenario = (manifest.get("trace_scenario") or {}).get("label")
+    if not scenario:
+        scenario = "Standard generated trace"
+    profile = ISL_PROFILE_LABELS.get(params.get("isl_profile") or "empirical", params.get("isl_profile") or "empirical")
+    stem = filename_slug(" ".join(part for part in (source, scenario, profile) if part))
+    return f"{stem}-{download_timestamp()}.{extension.lstrip('.')}"
 
 def choose_isl_length(base_med, input_mult, profile):
     weights = ISL_PROFILES.get(profile or 'empirical', {})
@@ -190,9 +256,19 @@ def blocks_for_bucket(bucket_name, rng):
         return rng.randint(min_blocks, max_blocks)
     return rng.randint(33, 128)
 
+def resolve_trace_source_id(params):
+    """UI/storage use `source`; older callers and scripts used `base`."""
+    params = params or {}
+    raw = params.get("source") if params.get("source") not in (None, "") else params.get("base")
+    value = canonicalize_source_id(str(raw or "conversation").strip())
+    return value or "conversation"
+
+
 def generate_legacy_simulated_trace_data(params):
     """Generate a simulated but realistic trace based on summary stats."""
-    base_name = params.get('base', 'conversation')
+    params = {**(params or {})}
+    params["aiperf_dataset_style"] = normalize_aiperf_dataset_style(params.get("aiperf_dataset_style"))
+    base_name = resolve_trace_source_id(params)
     base = BASES.get(base_name, BASES['conversation'])
     scale = float(params.get('scale', 1.0))
     input_mult = float(params.get('input_mult', 1.0))
@@ -278,6 +354,7 @@ def generate_legacy_simulated_trace_data(params):
     manifest = {
         "generator": "tracerator",
         "params": params,
+        "aiperf_dataset": dataset_style_manifest(params.get("aiperf_dataset_style")),
         "n_requests": len(reqs),
         "approx_cache_hit_ratio": round(computed_hit, 3),
         "unique_block_ids": unique_h,
@@ -315,6 +392,8 @@ def generate_wall_clock_win_trace_data(params):
     - delayed reuse across a large working set
     - modest output lengths so prefill dominates end-to-end latency
     """
+    params = {**(params or {})}
+    params["aiperf_dataset_style"] = normalize_aiperf_dataset_style(params.get("aiperf_dataset_style"))
     seed = parse_int(params.get('seed', 42), 42)
     rng = random.Random(seed)
     scale = clamp(parse_float(params.get('scale', 1.0), 1.0), 0.2, 4.0)
@@ -412,6 +491,7 @@ def generate_wall_clock_win_trace_data(params):
     manifest = {
         "generator": "tracerator",
         "params": params_with_defaults,
+        "aiperf_dataset": dataset_style_manifest(params.get("aiperf_dataset_style")),
         "trace_scenario": {
             "id": WALL_CLOCK_WIN_SCENARIO,
             "label": "KV reuse stress scenario",
@@ -470,10 +550,16 @@ def generate_wall_clock_win_trace_data(params):
 
 def generate_trace_data(params):
     """Generate an AIPerf-ready trace from the selected real baseline source."""
-    if params.get('trace_scenario') == WALL_CLOCK_WIN_SCENARIO:
+    params = {**(params or {})}
+    params["aiperf_dataset_style"] = normalize_aiperf_dataset_style(params.get("aiperf_dataset_style"))
+    base_name = resolve_trace_source_id(params)
+    if is_lightinferra_golden_source(base_name):
+        return generate_lightinferra_golden_trace_data(params)
+    if params.get('trace_scenario') == WALL_CLOCK_WIN_SCENARIO or params.get('scenario') == WALL_CLOCK_WIN_SCENARIO:
         return generate_wall_clock_win_trace_data(params)
 
-    base_name = params.get('base', 'conversation')
+    # Keep source/base aligned so manifests, study packs, and UI stay consistent.
+    params = {**params, "source": base_name, "base": base_name}
     try:
         source = source_by_id(base_name)
     except KeyError:
@@ -516,6 +602,7 @@ def generate_trace_data(params):
     manifest = {
         "generator": "tracerator",
         "params": params,
+        "aiperf_dataset": dataset_style_manifest(params.get("aiperf_dataset_style")),
         "base_source": {
             "id": source.id,
             "label": source.label,
@@ -523,6 +610,10 @@ def generate_trace_data(params):
             "path": str(source.path),
             "mode": source.mode,
             "cache_fidelity": source.cache_fidelity,
+            "description": source.description,
+            "source_url": source.source_url,
+            "source_label": source.source_label,
+            "license": source.license,
         },
         "base_stats": real_manifest.get("base_stats", {}),
         "effective_scale": effective_scale,
@@ -542,6 +633,163 @@ def generate_trace_data(params):
         "note": "Generated from a real baseline source through the production Tracerator generator. Source prefix/hash structure is preserved or deterministically adapted to 512-token AIPerf block hashes.",
     }
     return ext_reqs, manifest
+
+
+def lightinferra_golden_options():
+    models = []
+    for model in GOLDEN_MODELS.values():
+        references = {
+            str(context): {
+                "published_context_label": reference.published_context_label,
+                "regen_ttft_ms": reference.regen_ttft_ms,
+                "remote_kv_ttft_ms": reference.remote_ttft_ms,
+                "published_speedup_x": reference.published_speedup,
+            }
+            for context, reference in model.references.items()
+        }
+        models.append({
+            "id": model.id,
+            "label": model.published_model,
+            "max_context_tokens": model.max_context_tokens,
+            "headline_contexts": list(model.references),
+            "curve_contexts": list(model.curve_points),
+            "references": references,
+        })
+    return {
+        "source_id": LIGHTINFERRA_GOLDEN_SOURCE,
+        "suites": [
+            {"id": "headline", "label": "Headline reference points"},
+            {"id": "curve", "label": "Context-length curve"},
+        ],
+        "models": models,
+        "defaults": {
+            "suite": "headline",
+            "model": "qwen2.5-7b",
+            "context_tokens": 1_010_000,
+            "repetitions": 1,
+            "physical_page_tokens": DEFAULT_PHYSICAL_PAGE_TOKENS,
+            "resume_tail_tokens": DEFAULT_RESUME_TAIL_TOKENS,
+            "output_tokens": DEFAULT_OUTPUT_TOKENS,
+            "seed": LIGHTINFERRA_DEFAULT_SEED,
+        },
+    }
+
+
+def generate_lightinferra_golden_trace_data(params):
+    params = {**(params or {})}
+    source = source_by_id(LIGHTINFERRA_GOLDEN_SOURCE)
+    suite = str(params.get("lightinferra_suite") or "headline")
+    if suite not in {"headline", "curve"}:
+        raise ValueError("LightInferra suite must be 'headline' or 'curve'")
+
+    model_id = str(params.get("lightinferra_model") or "qwen2.5-7b")
+    model = GOLDEN_MODELS.get(model_id)
+    if model is None:
+        raise ValueError(f"Unknown LightInferra golden model: {model_id}")
+    allowed_contexts = tuple(model.references) if suite == "headline" else tuple(model.curve_points)
+    default_context = max(allowed_contexts)
+    try:
+        context_tokens = int(params.get("lightinferra_context_tokens") or default_context)
+        repetitions = int(params.get("lightinferra_repetitions") or 1)
+        physical_page_tokens = int(
+            params.get("lightinferra_physical_page_tokens") or DEFAULT_PHYSICAL_PAGE_TOKENS
+        )
+        resume_tail_tokens = int(
+            params.get("lightinferra_resume_tail_tokens") or DEFAULT_RESUME_TAIL_TOKENS
+        )
+        output_tokens = int(params.get("lightinferra_output_tokens") or DEFAULT_OUTPUT_TOKENS)
+        seed = int(params.get("seed") or LIGHTINFERRA_DEFAULT_SEED)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Invalid LightInferra golden parameter: {exc}") from exc
+    if context_tokens not in allowed_contexts:
+        raise ValueError(
+            f"Context {context_tokens:,} is not in the {suite} suite for {model_id}"
+        )
+
+    turn1, turn2, combined, case_manifest = build_lightinferra_case(
+        model=model,
+        context_tokens=context_tokens,
+        repetitions=repetitions,
+        logical_block_tokens=DEFAULT_LOGICAL_BLOCK_TOKENS,
+        physical_page_tokens=physical_page_tokens,
+        resume_tail_tokens=resume_tail_tokens,
+        output_tokens=output_tokens,
+        seed=seed,
+    )
+    analysis = analyze_trace(combined, name=case_manifest["case_id"])
+    unique_ids = {block_id for row in combined for block_id in row["hash_ids"]}
+    effective_params = {
+        **params,
+        "source": LIGHTINFERRA_GOLDEN_SOURCE,
+        "base": LIGHTINFERRA_GOLDEN_SOURCE,
+        "scenario": "lightinferra_golden",
+        "lightinferra_suite": suite,
+        "lightinferra_model": model_id,
+        "lightinferra_context_tokens": context_tokens,
+        "lightinferra_repetitions": repetitions,
+        "lightinferra_physical_page_tokens": physical_page_tokens,
+        "lightinferra_resume_tail_tokens": resume_tail_tokens,
+        "lightinferra_output_tokens": output_tokens,
+        "kv_model": model.kv_model_id,
+        "block_size": DEFAULT_LOGICAL_BLOCK_TOKENS,
+        "seed": seed,
+    }
+    manifest = {
+        "generator": "tracerator-lightinferra-golden",
+        "params": effective_params,
+        "aiperf_dataset": dataset_style_manifest(effective_params.get("aiperf_dataset_style")),
+        "base_source": {
+            "id": source.id,
+            "label": source.label,
+            "family": source.family,
+            "path": str(source.path),
+            "mode": source.mode,
+            "cache_fidelity": source.cache_fidelity,
+            "description": source.description,
+            "source_url": source.source_url,
+            "source_label": source.source_label,
+            "license": source.license,
+        },
+        "trace_scenario": {
+            "id": "lightinferra_golden",
+            "label": "Turn-1/Turn-2 external KV golden",
+            "description": (
+                "Warm a deterministic long-context KV prefix on Turn 1, then resume the "
+                "same prefix on Turn 2 after GPU/host eviction."
+            ),
+        },
+        "base_stats": {
+            "n_requests": len(combined),
+            "duration_ms": analysis.duration_ms,
+            "median_input": analysis.median_input,
+            "median_output": analysis.median_output,
+        },
+        "n_requests": len(combined),
+        "approx_cache_hit_ratio": analysis.approx_cache_hit_ratio,
+        "unique_block_ids": len(unique_ids),
+        "max_concurrency": max(analysis.burst_sizes, default=0),
+        "isl_distribution": isl_distribution([row["input_length"] for row in combined]),
+        "integrity": {
+            "schema": "mooncake_trace",
+            "block_size": DEFAULT_LOGICAL_BLOCK_TOKENS,
+            "hash_ids_rule": (
+                "len(hash_ids) == ceil(input_length / logical_block_tokens)"
+            ),
+            "timestamp_unit": "milliseconds",
+            "aiperf_ready": True,
+        },
+        "seed": seed,
+        "lightinferra_golden": {
+            **case_manifest,
+            "suite": suite,
+            "phase_record_counts": {"turn1": len(turn1), "turn2": len(turn2)},
+        },
+        "note": (
+            "Deterministic LightInferra-style golden case. Published numbers are "
+            "external reference points, not automatic pass/fail thresholds."
+        ),
+    }
+    return combined, manifest
 
 def kv_planning_params(params):
     warmup_value = params.get("warmup_fraction", 0.5)
@@ -569,13 +817,665 @@ def attach_kv_planning(reqs, manifest, params):
 def serve_ui():
     return app.send_static_file('index.html')
 
+@app.route('/runs/<run_id>/view')
+@app.route('/run/<run_id>')
+def serve_run_ui(run_id):
+    return app.send_static_file('run.html')
+
 @app.route('/compare')
 def serve_compare():
     return app.send_static_file('compare.html')
 
+@app.route('/profiles')
+def serve_profiles():
+    return app.send_static_file('profiles.html')
+
+@app.route('/study')
+def serve_study():
+    return app.send_static_file('study.html')
+
+
+def _study_slices_for_run_ids(run_ids):
+    slices = []
+    errors = []
+    for run_id in run_ids:
+        run = storage.get_run(run_id, full=True)
+        if not run:
+            errors.append(f"{run_id}: not found")
+            continue
+        records = storage.load_trace_records(run_id)
+        max_records = 6000
+        if len(records) > max_records:
+            step = max(1, len(records) // max_records)
+            records = records[::step][:max_records]
+        try:
+            slices.append(build_run_study_slice(run=run, records=records))
+        except Exception as exc:  # noqa: BLE001 — surface per-run failures to UI
+            errors.append(f"{run_id}: {exc}")
+    return slices, errors
+
+
+@app.route('/study/providers', methods=['GET'])
+def study_providers_route():
+    return jsonify({"providers": list_providers()})
+
+
+@app.route('/study/context', methods=['POST'])
+def study_context_route():
+    payload = request.get_json() or {}
+    run_ids = payload.get("run_ids") or []
+    if not isinstance(run_ids, list) or not run_ids:
+        return jsonify({"error": "run_ids must be a non-empty list"}), 400
+    run_ids = [str(rid) for rid in run_ids][:5]
+    slices, errors = _study_slices_for_run_ids(run_ids)
+    if not slices:
+        return jsonify({"error": "No usable runs", "details": errors}), 400
+    context = build_study_context(slices)
+    return jsonify({"context": context, "runs": slices, "errors": errors})
+
+
+@app.route('/study/summarize', methods=['POST'])
+def study_summarize_route():
+    payload = request.get_json() or {}
+    run_ids = payload.get("run_ids") or []
+    if not isinstance(run_ids, list) or not run_ids:
+        return jsonify({"error": "run_ids must be a non-empty list"}), 400
+    run_ids = [str(rid) for rid in run_ids][:5]
+    slices, errors = _study_slices_for_run_ids(run_ids)
+    if not slices:
+        return jsonify({"error": "No usable runs", "details": errors}), 400
+    context = build_study_context(slices)
+    try:
+        result = summarize_study(
+            context,
+            provider=str(payload.get("provider") or "openai"),
+            api_key=str(payload.get("api_key") or ""),
+            model=payload.get("model"),
+        )
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc), "errors": errors}), 400
+    return jsonify({
+        "summary": result,
+        "context": context,
+        "runs": slices,
+        "errors": errors,
+    })
+
+
+@app.route('/study/chat', methods=['POST'])
+def study_chat_route():
+    payload = request.get_json() or {}
+    run_ids = payload.get("run_ids") or []
+    question = payload.get("question") or ""
+    history = payload.get("history") or []
+    if not isinstance(run_ids, list) or not run_ids:
+        return jsonify({"error": "run_ids must be a non-empty list"}), 400
+    run_ids = [str(rid) for rid in run_ids][:5]
+    slices, errors = _study_slices_for_run_ids(run_ids)
+    if not slices:
+        return jsonify({"error": "No usable runs", "details": errors}), 400
+    context = build_study_context(slices)
+    if not isinstance(history, list):
+        history = []
+    try:
+        result = chat_with_study(
+            context,
+            provider=str(payload.get("provider") or "openai"),
+            api_key=str(payload.get("api_key") or ""),
+            model=payload.get("model"),
+            history=history,
+            question=str(question),
+        )
+    except (ValueError, RuntimeError) as exc:
+        return jsonify({"error": str(exc), "errors": errors}), 400
+    return jsonify({"reply": result, "errors": errors})
+
+
+def _run_index_stats(manifest):
+    integrity = manifest.get("integrity") or {}
+    return {
+        "request_count": manifest.get("n_requests"),
+        "max_concurrency": manifest.get("max_concurrency"),
+        "approx_cache_hit": manifest.get("approx_cache_hit_ratio"),
+        "integrity_ok": bool(integrity.get("aiperf_ready", True)),
+    }
+
+
+def _persist_generated_run(run_id, params, reqs, manifest):
+    storage.write_trace_jsonl(run_id, reqs)
+    aiperf_style = normalize_aiperf_dataset_style(
+        params.get("aiperf_dataset_style") or (manifest.get("aiperf_dataset") or {}).get("id")
+    )
+    write_aiperf_dataset(storage.run_dir(run_id) / dataset_file_name(aiperf_style), reqs, aiperf_style)
+    storage.save_json_artifact(run_id, "manifest.json", manifest)
+    _persist_lightinferra_artifacts(run_id, reqs, manifest)
+    stats = _run_index_stats(manifest)
+    source = params.get("source") or (manifest.get("base_source") or {}).get("id")
+    scenario = params.get("scenario") or (manifest.get("trace_scenario") or {}).get("id") or "standard"
+    records = reqs
+    enriched = enrich_run(records, params=params, manifest=manifest)
+    narrative = enriched.get("narrative")
+    storage.save_json_artifact(run_id, "narrative.json", narrative)
+    existing = storage.get_run(run_id, full=False) or {}
+    trace_card = build_run_trace_card(
+        run_id,
+        existing.get("name") or (manifest.get("base_source") or {}).get("label") or run_id,
+        records,
+        manifest,
+    )
+    storage.save_json_artifact(run_id, "trace_card.json", trace_card)
+    return storage.update_run(
+        run_id,
+        status="generated",
+        source=source,
+        scenario=scenario,
+        params=params,
+        manifest=manifest,
+        narrative=narrative,
+        request_count=stats["request_count"],
+        max_concurrency=stats["max_concurrency"],
+        approx_cache_hit=stats["approx_cache_hit"],
+        integrity_ok=stats["integrity_ok"],
+    )
+
+
+def _persist_lightinferra_artifacts(run_id, records, manifest):
+    golden = manifest.get("lightinferra_golden") or {}
+    if not golden:
+        return
+    workload = golden.get("workload") or {}
+    repetitions = int(workload.get("repetitions") or 0)
+    gap_ms = int(workload.get("recommended_turn2_delay_ms") or 0)
+    if repetitions <= 0 or len(records) != repetitions * 2:
+        raise ValueError("LightInferra golden run has an invalid Turn-1/Turn-2 record layout")
+
+    turn1 = []
+    turn2 = []
+    for repetition in range(repetitions):
+        phase_timestamp = repetition * gap_ms
+        turn1.append({**records[repetition * 2], "timestamp": phase_timestamp})
+        turn2.append({**records[repetition * 2 + 1], "timestamp": phase_timestamp})
+
+    run_dir = storage.run_dir(run_id)
+    for name, rows in (
+        ("turn1_warm.jsonl", turn1),
+        ("turn2_resume.jsonl", turn2),
+        ("kv_io_summary.jsonl", golden.get("storage_operations") or []),
+    ):
+        (run_dir / name).write_text(
+            "".join(json.dumps(row, separators=(",", ":")) + "\n" for row in rows),
+            encoding="utf-8",
+        )
+    case_manifest = {
+        key: value
+        for key, value in golden.items()
+        if key not in {"storage_operations", "suite", "phase_record_counts"}
+    }
+    storage.save_json_artifact(run_id, "case_manifest.json", case_manifest)
+
+
+def _build_run_zip(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return None, None
+    params = run.get("params") or {}
+    manifest = run.get("manifest") or {}
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        trace_file = storage.trace_path(run_id)
+        if trace_file.exists():
+            zf.write(trace_file, "trace.jsonl")
+        for artifact_name in (
+            "turn1_warm.jsonl",
+            "turn2_resume.jsonl",
+            "case_manifest.json",
+            "kv_io_summary.jsonl",
+        ):
+            artifact_path = storage.run_dir(run_id) / artifact_name
+            if artifact_path.exists():
+                zf.write(artifact_path, artifact_name)
+        if manifest:
+            zf.writestr("manifest.json", json.dumps(manifest, indent=2))
+            if manifest.get("isl_distribution"):
+                zf.writestr(
+                    "isl_distribution.txt",
+                    render_isl_distribution_text(manifest["isl_distribution"], "TRACE: trace.jsonl"),
+                )
+                zf.writestr(
+                    "isl_distribution.svg",
+                    render_isl_distribution_svg(manifest["isl_distribution"], "TRACE: trace.jsonl"),
+                )
+        if run.get("analysis"):
+            zf.writestr("analysis.json", json.dumps(run["analysis"], indent=2))
+        if run.get("replay_result"):
+            zf.writestr("replay_result.json", json.dumps(run["replay_result"], indent=2))
+        sizing_result = storage.load_json_artifact(run_id, "sizing_result.json")
+        if sizing_result:
+            zf.writestr("sizing_result.json", json.dumps(sizing_result, indent=2))
+            llmd_yaml = (sizing_result.get("llmd_config") or {}).get("yaml")
+            if llmd_yaml:
+                zf.writestr("llmd-simulator.yaml", llmd_yaml)
+        aiperf_style = normalize_aiperf_dataset_style(
+            params.get("aiperf_dataset_style") or (manifest.get("aiperf_dataset") or {}).get("id")
+        )
+        records = storage.load_trace_records(run_id)
+        if records:
+            aiperf_records = "\n".join(
+                json.dumps(row, separators=(",", ":"))
+                for row in convert_mooncake_records(records, aiperf_style)
+            )
+            zf.writestr(dataset_file_name(aiperf_style), aiperf_records + ("\n" if aiperf_records else ""))
+        if run.get("narrative"):
+            zf.writestr("narrative.json", json.dumps(run["narrative"], indent=2))
+            md = (run["narrative"] or {}).get("markdown")
+            if md:
+                zf.writestr("narrative.md", md)
+        trace_card = storage.load_json_artifact(run_id, "trace_card.json")
+        if trace_card:
+            zf.writestr("trace_card.json", json.dumps(trace_card, indent=2))
+        zf.writestr(
+            "README.txt",
+            "Tracerator run bundle\n\n"
+            f"run_id: {run_id}\n"
+            "Files may include trace.jsonl, manifest.json, analysis.json, "
+            "replay_result.json, sizing_result.json, llmd-simulator.yaml, "
+            "trace_card.json, and narrative.md.\n",
+        )
+    zip_buffer.seek(0)
+    name = trace_download_name(manifest or {"base_source": {"label": run.get("name")}}, params, "zip")
+    return zip_buffer, name
+
+
+@app.route('/runs', methods=['GET'])
+def list_runs_route():
+    return jsonify({
+        "runs": storage.list_runs(
+            limit=parse_int(request.args.get("limit"), 100),
+            offset=parse_int(request.args.get("offset"), 0),
+            status=request.args.get("status"),
+            query=request.args.get("q"),
+        )
+    })
+
+
+@app.route('/runs', methods=['POST'])
+def create_run_route():
+    payload = request.get_json() or {}
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else payload
+    run = storage.create_run(
+        name=payload.get("name"),
+        source=params.get("source") or payload.get("source"),
+        scenario=params.get("scenario") or payload.get("scenario") or "standard",
+        params=params,
+        notes=payload.get("notes"),
+    )
+    return jsonify(run), 201
+
+
+@app.route('/runs/<run_id>', methods=['GET'])
+def get_run_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    return jsonify(run)
+
+
+@app.route('/runs/<run_id>', methods=['DELETE'])
+def delete_run_route(run_id):
+    if not storage.delete_run(run_id):
+        return jsonify({"error": "run not found"}), 404
+    return jsonify({"ok": True, "id": run_id})
+
+
+@app.route('/runs/<run_id>/generate', methods=['POST'])
+def generate_run_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    payload = request.get_json() or {}
+    params = payload.get("params") if isinstance(payload.get("params"), dict) else {
+        key: value for key, value in payload.items()
+        if key not in ("name", "notes")
+    }
+    if not params:
+        params = run.get("params") or {}
+    name = payload.get("name")
+    try:
+        reqs, manifest = generate_trace_data(params)
+        params = manifest.get("params") or params
+        attach_kv_planning(reqs, manifest, params)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if name:
+        storage.update_run(run_id, name=str(name).strip() or run.get("name"))
+    updated = _persist_generated_run(run_id, params, reqs, manifest)
+    return jsonify(updated)
+
+
+@app.route('/runs/<run_id>', methods=['PATCH'])
+def patch_run_route(run_id):
+    payload = request.get_json() or {}
+    try:
+        updated = storage.update_run(
+            run_id,
+            name=payload.get("name"),
+            notes=payload.get("notes"),
+            status=payload.get("status"),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not updated:
+        return jsonify({"error": "run not found"}), 404
+    return jsonify(updated)
+
+
+@app.route('/runs/<run_id>/validate', methods=['POST'])
+def validate_run_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    payload = request.get_json() or {}
+    params = run.get("params") or {}
+    if isinstance(payload.get("trace_params"), dict):
+        params = {**params, **payload["trace_params"]}
+    if payload.get("aiperf_dataset_style") or payload.get("custom_dataset_type"):
+        params = {
+            **params,
+            "aiperf_dataset_style": payload.get("aiperf_dataset_style") or payload.get("custom_dataset_type"),
+        }
+
+    reqs = storage.load_trace_records(run_id)
+    manifest = run.get("manifest")
+    if not reqs or not manifest:
+        try:
+            reqs, manifest = generate_trace_data(params)
+            params = manifest.get("params") or params
+            attach_kv_planning(reqs, manifest, params)
+            _persist_generated_run(run_id, params, reqs, manifest)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    result = validate_generated_trace(
+        reqs,
+        manifest,
+        _aiperf_validation_options(payload),
+    )
+
+    analysis = None
+    if isinstance(result.get("analysis"), dict) and result["analysis"].get("status") == "ok":
+        analysis = result["analysis"]
+    replay_result = None
+    if isinstance(result.get("replay"), dict) and result["replay"].get("replay_result"):
+        replay_result = result["replay"]["replay_result"]
+
+    status = "validated" if analysis else (run.get("status") or "generated")
+    if replay_result:
+        status = "replayed"
+        storage.save_json_artifact(run_id, "replay_result.json", replay_result)
+    if analysis:
+        storage.save_json_artifact(run_id, "analysis.json", analysis)
+
+    enriched = enrich_run(
+        reqs,
+        params=params,
+        manifest=manifest,
+        analysis=analysis,
+        replay_result=replay_result,
+    )
+    storage.update_run(
+        run_id,
+        status=status,
+        analysis=analysis,
+        replay_result=replay_result,
+        narrative=enriched.get("narrative"),
+        has_analysis=bool(analysis),
+        has_replay=bool(replay_result),
+    )
+    result["run"] = storage.get_run(run_id, full=True)
+    return jsonify(result)
+
+
+@app.route('/runs/<run_id>/upload', methods=['POST'])
+def upload_run_results_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+
+    replay_result = None
+    analysis = None
+
+    if request.files:
+        uploaded = request.files.get("file") or next(iter(request.files.values()), None)
+        if uploaded is None:
+            return jsonify({"error": "file is required"}), 400
+        filename = (uploaded.filename or "").lower()
+        raw = uploaded.read()
+        if filename.endswith(".zip"):
+            with zipfile.ZipFile(BytesIO(raw)) as zf:
+                names = zf.namelist()
+                if "replay_result.json" in names:
+                    replay_result = json.loads(zf.read("replay_result.json"))
+                if "analysis.json" in names:
+                    analysis = json.loads(zf.read("analysis.json"))
+                # Unpack AIPerf-style artifact zip into run dir and normalize
+                if replay_result is None and any(
+                    n.endswith("profile_export_aiperf.json") or n == "profile_export_aiperf.json"
+                    for n in names
+                ):
+                    dest = storage.run_dir(run_id) / "uploaded_aiperf"
+                    if dest.exists():
+                        import shutil
+                        shutil.rmtree(dest)
+                    dest.mkdir(parents=True, exist_ok=True)
+                    zf.extractall(dest)
+                    # Find directory containing profile_export_aiperf.json
+                    candidates = list(dest.rglob("profile_export_aiperf.json"))
+                    if not candidates:
+                        return jsonify({"error": "zip missing profile_export_aiperf.json"}), 400
+                    try:
+                        replay_result = normalize_aiperf_run(candidates[0].parent)
+                    except (FileNotFoundError, ValueError, OSError) as exc:
+                        return jsonify({"error": str(exc)}), 400
+        else:
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                return jsonify({"error": f"invalid JSON upload: {exc}"}), 400
+            if payload.get("artifact_type") == "aiperf_replay_result" or payload.get("schema_version") == "tracerator.replay_result.v1":
+                replay_result = payload
+            elif "isl_distribution" in payload or payload.get("n_requests") is not None:
+                # treat as manifest overlay — uncommon
+                storage.update_run(run_id, manifest={**(run.get("manifest") or {}), **payload})
+                return jsonify(storage.get_run(run_id, full=True))
+            else:
+                replay_result = payload
+    else:
+        body = request.get_json() or {}
+        if body.get("artifact_dir"):
+            try:
+                replay_result = normalize_aiperf_run(body["artifact_dir"])
+            except (FileNotFoundError, ValueError, OSError) as exc:
+                return jsonify({"error": str(exc)}), 400
+        elif body.get("replay_result"):
+            replay_result = body["replay_result"]
+        elif body.get("artifact_type") == "aiperf_replay_result":
+            replay_result = body
+        elif body.get("analysis"):
+            analysis = body["analysis"]
+        else:
+            return jsonify({"error": "provide file, artifact_dir, or replay_result"}), 400
+
+    if analysis:
+        storage.save_json_artifact(run_id, "analysis.json", analysis)
+    if replay_result:
+        storage.save_json_artifact(run_id, "replay_result.json", replay_result)
+
+    reqs = storage.load_trace_records(run_id)
+    enriched = enrich_run(
+        reqs,
+        params=run.get("params"),
+        manifest=run.get("manifest"),
+        analysis=analysis or run.get("analysis"),
+        replay_result=replay_result or run.get("replay_result"),
+    )
+    status = "replayed" if replay_result else (run.get("status") or "generated")
+    if analysis and not replay_result and status == "generated":
+        status = "validated"
+    updated = storage.update_run(
+        run_id,
+        status=status,
+        analysis=analysis if analysis else None,
+        replay_result=replay_result if replay_result else None,
+        narrative=enriched.get("narrative"),
+        has_analysis=bool(analysis or run.get("analysis")),
+        has_replay=bool(replay_result or run.get("has_replay")),
+    )
+    return jsonify(updated)
+
+
+@app.route('/runs/<run_id>/download', methods=['GET'])
+def download_run_route(run_id):
+    zip_buffer, name = _build_run_zip(run_id)
+    if zip_buffer is None:
+        return jsonify({"error": "run not found"}), 404
+    return send_file(
+        zip_buffer,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=name or f"tracerator-run-{run_id}.zip",
+    )
+
+
+@app.route('/runs/<run_id>/inspect', methods=['GET'])
+def inspect_run_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    reqs = storage.load_trace_records(run_id)
+    sampled = False
+    max_inspect = parse_int(request.args.get("max_records"), 8000)
+    if len(reqs) > max_inspect:
+        step = max(1, len(reqs) // max_inspect)
+        reqs = reqs[::step][:max_inspect]
+        sampled = True
+    if not reqs:
+        return jsonify({
+            "run": run,
+            "inspect": enrich_run(
+                [],
+                params=run.get("params"),
+                manifest=run.get("manifest"),
+                analysis=run.get("analysis"),
+                replay_result=run.get("replay_result"),
+            ),
+            "sampled": False,
+        })
+    inspect = enrich_run(
+        reqs,
+        params=run.get("params"),
+        manifest=run.get("manifest"),
+        analysis=run.get("analysis"),
+        replay_result=run.get("replay_result"),
+    )
+    storage.update_run(run_id, narrative=inspect.get("narrative"))
+    return jsonify({
+        "run": storage.get_run(run_id, full=True),
+        "inspect": inspect,
+        "sampled": sampled,
+    })
+
+
+@app.route('/sizing/profiles', methods=['GET'])
+def sizing_profiles_route():
+    return jsonify(sizing_catalog())
+
+
+@app.route('/runs/<run_id>/sizing', methods=['GET', 'POST'])
+def run_sizing_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    if request.method == 'GET':
+        result = storage.load_json_artifact(run_id, "sizing_result.json")
+        if not result:
+            return jsonify({"error": "sizing study not found"}), 404
+        return jsonify({"sizing": result})
+
+    records = storage.load_trace_records(run_id)
+    if not records:
+        return jsonify({"error": "Generate the trace before running a sizing study"}), 400
+    payload = request.get_json() or {}
+    try:
+        result = build_sizing_study(
+            records,
+            manifest=run.get("manifest"),
+            replay_result=run.get("replay_result"),
+            options=payload,
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    storage.save_json_artifact(run_id, "sizing_result.json", result)
+    llmd_yaml = (result.get("llmd_config") or {}).get("yaml")
+    if llmd_yaml:
+        (storage.run_dir(run_id) / "llmd-simulator.yaml").write_text(
+            llmd_yaml,
+            encoding="utf-8",
+        )
+    return jsonify({"sizing": result})
+
+
+@app.route('/runs/<run_id>/replay-scene', methods=['GET'])
+def replay_scene_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    records = storage.load_trace_records(run_id)
+    if not records:
+        return jsonify({"error": "Generate the trace before opening Replay Map"}), 400
+    try:
+        scene = build_replay_scene(
+            records,
+            manifest=run.get("manifest"),
+            replay_result=run.get("replay_result"),
+            sizing_result=storage.load_json_artifact(run_id, "sizing_result.json"),
+            max_requests=parse_int(request.args.get("max_requests"), 600),
+            max_frames=parse_int(request.args.get("max_frames"), 180),
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"scene": scene})
+
+
 @app.route('/sources', methods=['GET'])
 def sources():
     return jsonify({"sources": sources_for_api()})
+
+
+@app.route('/sources/lightinferra-golden/options', methods=['GET'])
+@app.route('/sources/lightinferra-ddn-golden/options', methods=['GET'])
+def lightinferra_golden_options_route():
+    return jsonify(lightinferra_golden_options())
+
+
+@app.route('/trace-cards', methods=['GET'])
+def trace_cards_route():
+    return jsonify({"cards": list_builtin_trace_cards()})
+
+
+@app.route('/runs/<run_id>/trace-card', methods=['GET'])
+def run_trace_card_route(run_id):
+    run = storage.get_run(run_id, full=True)
+    if not run:
+        return jsonify({"error": "run not found"}), 404
+    card = storage.load_json_artifact(run_id, "trace_card.json")
+    if not card:
+        records = storage.load_trace_records(run_id)
+        manifest = run.get("manifest") or {}
+        if not records or not manifest:
+            return jsonify({"error": "Generate the trace before opening its Trace Card"}), 404
+        card = build_run_trace_card(run_id, run.get("name") or run_id, records, manifest)
+        storage.save_json_artifact(run_id, "trace_card.json", card)
+    return jsonify({"card": card})
 
 @app.route('/kv-cache/models', methods=['GET'])
 def kv_cache_models():
@@ -585,10 +1485,86 @@ def kv_cache_models():
         "default_capacity_gib_values": DEFAULT_CAPACITY_GIB,
     })
 
+@app.route('/aiperf/import', methods=['POST'])
+def import_aiperf_result():
+    payload = request.get_json() or {}
+    artifact_dir = payload.get("artifact_dir")
+    if not artifact_dir:
+        return jsonify({"error": "artifact_dir is required"}), 400
+    try:
+        result = normalize_aiperf_run(artifact_dir)
+    except (FileNotFoundError, ValueError, OSError) as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify(result)
+
+@app.route('/aiperf/status', methods=['GET'])
+def aiperf_status_route():
+    engine = request.args.get("engine") or "omlx"
+    url = request.args.get("url")
+    return jsonify(aiperf_status(engine=engine, url=url))
+
+@app.route('/aiperf/dataset-styles', methods=['GET'])
+def aiperf_dataset_styles_route():
+    return jsonify({"styles": list_aiperf_dataset_styles()})
+
+@app.route('/aiperf/public-datasets', methods=['GET'])
+def aiperf_public_datasets_route():
+    return jsonify({"datasets": list_aiperf_public_datasets()})
+
+def _aiperf_validation_options(payload):
+    return {
+        "mode": payload.get("mode", "analyze"),
+        "subset": payload.get("subset"),
+        "engine": payload.get("engine"),
+        "model": payload.get("model"),
+        "tokenizer": payload.get("tokenizer"),
+        "url": payload.get("url"),
+        "fixed_schedule": payload.get("fixed_schedule", True),
+        "slice_duration": payload.get("slice_duration"),
+        "block_size": payload.get("block_size"),
+        "api_key": payload.get("api_key"),
+        "aiperf_dataset_style": payload.get("aiperf_dataset_style") or payload.get("custom_dataset_type"),
+        "public_dataset": payload.get("public_dataset") or payload.get("aiperf_public_dataset"),
+        "hf_subset": payload.get("hf_subset"),
+        "endpoint_type": payload.get("endpoint_type"),
+    }
+
+def _trace_params_from_payload(payload):
+    reserved = {
+        "mode", "subset", "engine", "model", "tokenizer", "url",
+        "fixed_schedule", "slice_duration", "block_size", "trace_params",
+        "aiperf_dataset_style", "custom_dataset_type", "public_dataset",
+        "aiperf_public_dataset", "hf_subset", "endpoint_type",
+    }
+    if isinstance(payload.get("trace_params"), dict):
+        return dict(payload["trace_params"])
+    return {key: value for key, value in payload.items() if key not in reserved}
+
+@app.route('/aiperf/validate', methods=['POST'])
+def aiperf_validate_route():
+    payload = request.get_json() or {}
+    trace_params = _trace_params_from_payload(payload)
+    if payload.get("aiperf_dataset_style") or payload.get("custom_dataset_type"):
+        trace_params["aiperf_dataset_style"] = payload.get("aiperf_dataset_style") or payload.get("custom_dataset_type")
+    try:
+        reqs, manifest = generate_trace_data(trace_params)
+        trace_params = manifest.get("params") or trace_params
+        attach_kv_planning(reqs, manifest, trace_params)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    result = validate_generated_trace(
+        reqs,
+        manifest,
+        _aiperf_validation_options(payload),
+    )
+    return jsonify(result)
+
 @app.route('/generate', methods=['GET', 'POST'])
 def generate():
     params = dict(request.args) if request.method in ('GET', 'HEAD') else (request.get_json() or {})
     reqs, manifest = generate_trace_data(params)
+    params = manifest.get("params") or params
     attach_kv_planning(reqs, manifest, params)
 
     # Build zip in memory
@@ -599,6 +1575,12 @@ def generate():
         zf.writestr('trace.jsonl', trace_content + '\n')
         # manifest.json
         zf.writestr('manifest.json', json.dumps(manifest, indent=2))
+        aiperf_style = normalize_aiperf_dataset_style(params.get("aiperf_dataset_style"))
+        aiperf_records = "\n".join(
+            json.dumps(row, separators=(",", ":"))
+            for row in convert_mooncake_records(reqs, aiperf_style)
+        )
+        zf.writestr(dataset_file_name(aiperf_style), aiperf_records + ("\n" if aiperf_records else ""))
         zf.writestr(
             'isl_distribution.txt',
             render_isl_distribution_text(manifest['isl_distribution'], 'TRACE: trace.jsonl')
@@ -652,8 +1634,7 @@ traces with authentic burstiness and prefix distributions, use the full Mooncake
 
 See the main project README for parameter contract and background.
 
-Tip: Use the project's ./run_trace_ui.sh launcher — it has a pre-flight that ensures
-jq (and other utilities) are available and can auto-install them on common platforms.
+Tip: Launch Tracerator from the repository root with `docker compose up` (add `--build` after backend changes). Open http://localhost:8008 for the Workspace, Profiles, and Compare pages.
 
 VALIDATING WITH AIPERF (recommended for perf handoff)
 ----------------------------------------------------
@@ -661,7 +1642,7 @@ These trace.jsonl files use the Mooncake format and are natively supported by
 NVIDIA AIPerf via --custom-dataset-type mooncake_trace.
 
 **Canonical full instructions:**
-See docs/VALIDATING_WITH_AIPERF.md in this repository (the complete step-by-step guide).
+See docs/how-to/validate-with-aiperf.md in this repository.
 
 Quick start:
 1. Static validation (no server needed):
@@ -700,7 +1681,7 @@ In this repo:
         zip_buffer,
         mimetype='application/zip',
         as_attachment=True,
-        download_name='tracerator-output.zip'
+        download_name=trace_download_name(manifest, params, 'zip')
     )
 
 @app.route('/manifest', methods=['POST'])
@@ -708,6 +1689,7 @@ def manifest_preview():
     """Return just the manifest for preview in UI."""
     params = request.get_json() or {}
     reqs, manifest = generate_trace_data(params)
+    params = manifest.get("params") or params
     attach_kv_planning(reqs, manifest, params)
     # Also include a small sample of the trace
     reqs, _ = generate_trace_data({**params, 'scale': min(0.1, float(params.get('scale',1)))})  # small for preview
@@ -718,4 +1700,4 @@ def manifest_preview():
     })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=False)
+    app.run(host='0.0.0.0', port=8008, debug=False)

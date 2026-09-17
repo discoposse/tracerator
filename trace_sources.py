@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime
 import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
@@ -40,9 +42,30 @@ AIPERF_TOOLKIT = _first_existing(
     Path(os.environ.get("TRACERATOR_AIPERF_TOOLKIT_DIR", "/external/aiperf-toolkit")),
     DOCS / "aiperf-toolkit",
 )
+SAGESERVE_DIR = _first_existing(
+    Path(os.environ.get("TRACERATOR_SAGESERVE_DIR", "/external/SageServe")),
+    DOCS / "SageServe",
+)
 RAGPULSE_TRACE = RAGPULSE_DIR / "0_trace.jsonl"
 CC_WEKA_TRACE = CC_WEKA_DIR / "traces.jsonl"
 CODEX_SWEBENCHPRO_TRACE = CODEX_SWEBENCHPRO_DIR / "codex_swebenchpro.json"
+SAGESERVE_ENTERPRISE_TRACE = SAGESERVE_DIR / "traces" / "week-dp.csv"
+SAGESERVE_CODE_TRACE = SAGESERVE_DIR / "data" / "code_distributions.csv"
+SAGESERVE_CONV_TRACE = SAGESERVE_DIR / "data" / "conv_distributions.csv"
+LIGHTINFERRA_GOLDEN_GENERATOR = ROOT / "lightinferra_golden.py"
+LIGHTINFERRA_GOLDEN_SOURCE_ID = "lightinferra-golden"
+LIGHTINFERRA_GOLDEN_SOURCE_ALIASES = frozenset({"lightinferra-ddn-golden"})
+
+
+def canonicalize_source_id(source_id: str) -> str:
+    value = str(source_id or "").strip()
+    if value in LIGHTINFERRA_GOLDEN_SOURCE_ALIASES:
+        return LIGHTINFERRA_GOLDEN_SOURCE_ID
+    return value
+
+
+def is_lightinferra_golden_source(source_id: str) -> bool:
+    return canonicalize_source_id(source_id) == LIGHTINFERRA_GOLDEN_SOURCE_ID
 
 
 @dataclass(frozen=True)
@@ -57,6 +80,9 @@ class TraceSource:
     available: bool
     status: str = "ready"
     fetch_command: Optional[str] = None
+    source_url: Optional[str] = None
+    source_label: Optional[str] = None
+    license: Optional[str] = None
 
 
 def blocks_for_length(length: int, block_size: int = BLOCK_SIZE) -> int:
@@ -81,6 +107,25 @@ def _is_lfs_pointer(path: Path) -> bool:
 def discover_trace_sources() -> List[TraceSource]:
     sources = [
         TraceSource(
+            id=LIGHTINFERRA_GOLDEN_SOURCE_ID,
+            label="LightInferra-style golden",
+            family="External KV",
+            path=LIGHTINFERRA_GOLDEN_GENERATOR,
+            mode="lightinferra_golden",
+            description=(
+                "Deterministic Turn-1 warm and Turn-2 resume workload for comparing "
+                "cache regeneration with an external KV store."
+            ),
+            cache_fidelity="exact deterministic 512-token shared-prefix blocks",
+            available=LIGHTINFERRA_GOLDEN_GENERATOR.exists(),
+            status="ready" if LIGHTINFERRA_GOLDEN_GENERATOR.exists() else "generator missing",
+            source_url=(
+                "https://www.lightbitslabs.com/blog/"
+                "introducing-lightinferra-280x-improved-ai-token-economy-by-lightbits-labs/"
+            ),
+            source_label="LightInferra public benchmark methodology",
+        ),
+        TraceSource(
             id="conversation",
             label="Mooncake Conversation",
             family="Mooncake",
@@ -89,6 +134,9 @@ def discover_trace_sources() -> List[TraceSource]:
             description="Real multi-turn Kimi chat traffic with long contexts and prefix reuse.",
             cache_fidelity="block hash_ids",
             available=(MOONCAKE_DIR / "conversation_trace.jsonl").exists(),
+            source_url="https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+            source_label="Mooncake FAST '25 traces",
+            license="Apache-2.0",
         ),
         TraceSource(
             id="toolagent",
@@ -99,6 +147,9 @@ def discover_trace_sources() -> List[TraceSource]:
             description="Agent/tool traffic with high shared-prefix reuse and bursty arrivals.",
             cache_fidelity="block hash_ids",
             available=(MOONCAKE_DIR / "toolagent_trace.jsonl").exists(),
+            source_url="https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+            source_label="Mooncake FAST '25 traces",
+            license="Apache-2.0",
         ),
         TraceSource(
             id="synthetic",
@@ -109,6 +160,9 @@ def discover_trace_sources() -> List[TraceSource]:
             description="Long-context public-data baseline with lower sharing.",
             cache_fidelity="block hash_ids",
             available=(MOONCAKE_DIR / "synthetic_trace.jsonl").exists(),
+            source_url="https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+            source_label="Mooncake FAST '25 traces",
+            license="Apache-2.0",
         ),
         TraceSource(
             id="ragpulse",
@@ -119,6 +173,8 @@ def discover_trace_sources() -> List[TraceSource]:
             description="Real RAG workload from campus Q&A; component hashes are expanded to KV blocks.",
             cache_fidelity="component hash_ids expanded to 512-token blocks",
             available=RAGPULSE_TRACE.exists() and not _is_lfs_pointer(RAGPULSE_TRACE),
+            source_url="https://github.com/flashserve/RAGPulse",
+            source_label="flashserve/RAGPulse",
         ),
         TraceSource(
             id="cc-weka-subagents",
@@ -131,6 +187,9 @@ def discover_trace_sources() -> List[TraceSource]:
             available=CC_WEKA_TRACE.exists() and not _is_lfs_pointer(CC_WEKA_TRACE),
             status="ready" if CC_WEKA_TRACE.exists() and not _is_lfs_pointer(CC_WEKA_TRACE) else "Git LFS payload missing",
             fetch_command="scripts/fetch-baseline-traces.sh cc-weka-subagents",
+            source_url="https://huggingface.co/datasets/semianalysisai/cc-traces-weka-with-subagents-051826",
+            source_label="SemiAnalysis CC traces",
+            license="Apache-2.0",
         ),
         TraceSource(
             id="codex-swebenchpro",
@@ -142,6 +201,46 @@ def discover_trace_sources() -> List[TraceSource]:
             cache_fidelity="pending schema inspection after Git LFS payload is present",
             available=CODEX_SWEBENCHPRO_TRACE.exists() and not _is_lfs_pointer(CODEX_SWEBENCHPRO_TRACE),
             status="ready" if CODEX_SWEBENCHPRO_TRACE.exists() and not _is_lfs_pointer(CODEX_SWEBENCHPRO_TRACE) else "Git LFS payload missing",
+            source_label="Local Codex SWE-bench Pro trace",
+        ),
+        TraceSource(
+            id="sageserve-enterprise",
+            label="SageServe Enterprise Sydney",
+            family="SageServe",
+            path=SAGESERVE_ENTERPRISE_TRACE,
+            mode="sageserve_request_csv",
+            description="Enterprise multi-model prod/dev request trace with SageServe arrival, model, region, and workload metadata.",
+            cache_fidelity="deterministic enterprise prefix families expanded to 512-token blocks",
+            available=SAGESERVE_ENTERPRISE_TRACE.exists() and not _is_lfs_pointer(SAGESERVE_ENTERPRISE_TRACE),
+            status="ready" if SAGESERVE_ENTERPRISE_TRACE.exists() else "not found: SageServe traces/week-dp.csv",
+            source_url="https://github.com/shashwatj07/SageServe",
+            source_label="shashwatj07/SageServe",
+        ),
+        TraceSource(
+            id="sageserve-code",
+            label="SageServe Code Distribution",
+            family="SageServe",
+            path=SAGESERVE_CODE_TRACE,
+            mode="sageserve_distribution_csv",
+            description="Timestamped code workload distribution from SageServe with prompt and generated token sizes.",
+            cache_fidelity="deterministic code prefix families expanded to 512-token blocks",
+            available=SAGESERVE_CODE_TRACE.exists() and not _is_lfs_pointer(SAGESERVE_CODE_TRACE),
+            status="ready" if SAGESERVE_CODE_TRACE.exists() else "not found",
+            source_url="https://github.com/shashwatj07/SageServe",
+            source_label="shashwatj07/SageServe",
+        ),
+        TraceSource(
+            id="sageserve-conversation",
+            label="SageServe Conversation Distribution",
+            family="SageServe",
+            path=SAGESERVE_CONV_TRACE,
+            mode="sageserve_distribution_csv",
+            description="Timestamped enterprise conversation distribution from SageServe with prompt and generated token sizes.",
+            cache_fidelity="deterministic conversation prefix families expanded to 512-token blocks",
+            available=SAGESERVE_CONV_TRACE.exists() and not _is_lfs_pointer(SAGESERVE_CONV_TRACE),
+            status="ready" if SAGESERVE_CONV_TRACE.exists() else "not found",
+            source_url="https://github.com/shashwatj07/SageServe",
+            source_label="shashwatj07/SageServe",
         ),
         TraceSource(
             id="azure-conversation",
@@ -153,6 +252,8 @@ def discover_trace_sources() -> List[TraceSource]:
             cache_fidelity="unavailable",
             available=False,
             status="unsupported: no hash_ids",
+            source_url="https://github.com/NVIDIA/aiperf",
+            source_label="NVIDIA AIPerf toolkit",
         ),
         TraceSource(
             id="burstgpt",
@@ -164,14 +265,17 @@ def discover_trace_sources() -> List[TraceSource]:
             cache_fidelity="unavailable",
             available=False,
             status="unsupported: no hash_ids",
+            source_url="https://github.com/HPMLL/BurstGPT",
+            source_label="BurstGPT",
         ),
     ]
     return sources
 
 
 def source_by_id(source_id: str) -> TraceSource:
+    wanted = canonicalize_source_id(source_id)
     for source in discover_trace_sources():
-        if source.id == source_id:
+        if source.id == wanted:
             return source
     raise KeyError(f"unknown trace source {source_id!r}")
 
@@ -190,6 +294,9 @@ def sources_for_api() -> List[Dict[str, Any]]:
             "available": source.available,
             "status": source.status,
             "fetch_command": source.fetch_command,
+            "source_url": source.source_url,
+            "source_label": source.source_label,
+            "license": source.license,
         })
     return out
 
@@ -206,6 +313,15 @@ def load_source_records(source_id: str, max_records: Optional[int] = None) -> Li
         records = _load_cc_weka(source.path, max_records=max_records)
     elif source.mode == "codex_swebenchpro":
         records = _load_codex_swebenchpro(source.path, max_records=max_records)
+    elif source.mode == "sageserve_request_csv":
+        records = _load_sageserve_request_csv(source.path, source.id, max_records=max_records)
+    elif source.mode == "sageserve_distribution_csv":
+        records = _load_sageserve_distribution_csv(source.path, source.id, max_records=max_records)
+    elif source.mode == "lightinferra_golden":
+        raise ValueError(
+            f"{source.label} requires model and context parameters; generate it through "
+            "Tracerator's run workflow"
+        )
     else:
         raise ValueError(f"{source.label} cannot be used as a generated baseline: {source.status}")
     records.sort(key=lambda r: (r["timestamp"], r["input_length"]))
@@ -217,6 +333,132 @@ def _iter_jsonl(path: Path) -> Iterable[Dict[str, Any]]:
         for line in handle:
             if line.strip():
                 yield json.loads(line)
+
+
+def _coerce_int(value: Any, fallback: int = 0) -> int:
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _parse_wall_clock_timestamp_ms(value: Any) -> int:
+    text = str(value or "").strip()
+    if not text:
+        return 0
+    for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return int(datetime.strptime(text[:26], fmt).timestamp() * 1000)
+        except ValueError:
+            continue
+    return int(round(float(text) * 1000))
+
+
+def _relative_ms_from_numeric(value: Any) -> int:
+    numeric = float(value or 0)
+    # SageServe simulator traces use seconds. If a caller provides an already-ms
+    # timestamp, keep it rather than multiplying a large value again.
+    if numeric > 10_000_000:
+        return int(round(numeric))
+    return int(round(numeric * 1000))
+
+
+def _enterprise_prefix_components(row: Dict[str, Any], source_id: str, index: int) -> List[Any]:
+    workload = str(row.get("workload_type") or row.get("workload") or source_id).lower()
+    model = str(row.get("model_type") or row.get("model") or "model").lower()
+    regions = str(row.get("regions") or row.get("region") or "global").zfill(3)
+    tenant = str(row.get("client_tenant") or row.get("tenant") or "tenant")
+    scenario = str(row.get("scenario") or source_id)
+    request_id = str(row.get("request_id") or index)
+    hour_bucket = _relative_ms_from_numeric(row.get("arrival_timestamp", 0)) // 3_600_000
+    minute_bucket = _relative_ms_from_numeric(row.get("arrival_timestamp", 0)) // 60_000
+    return [
+        ("enterprise", source_id),
+        ("workload", workload),
+        ("model", model),
+        ("region-priority", regions[:1]),
+        ("scenario", scenario),
+        ("tenant", tenant),
+        ("hour", hour_bucket),
+        ("minute", minute_bucket),
+        ("request", request_id),
+    ]
+
+
+def _distribution_prefix_components(source_id: str, timestamp_ms: int, index: int) -> List[Any]:
+    family = "code" if "code" in source_id else "conversation"
+    return [
+        ("enterprise", "sageserve"),
+        ("family", family),
+        ("hour", timestamp_ms // 3_600_000),
+        ("minute", timestamp_ms // 60_000),
+        ("burst", timestamp_ms // 1000),
+        ("request", index),
+    ]
+
+
+def _load_sageserve_request_csv(path: Path, source_id: str, max_records: Optional[int] = None) -> List[Dict[str, Any]]:
+    records: List[Dict[str, Any]] = []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for idx, row in enumerate(reader):
+            if max_records is not None and len(records) >= max_records:
+                break
+            input_length = _coerce_int(row.get("prompt_size", row.get("input_length")), 0)
+            if input_length <= 0:
+                continue
+            output_length = max(1, _coerce_int(row.get("token_size", row.get("output_length")), 1))
+            timestamp = _relative_ms_from_numeric(row.get("arrival_timestamp", 0))
+            needed = blocks_for_length(input_length)
+            components = _enterprise_prefix_components(row, source_id, idx)
+            records.append({
+                "timestamp": timestamp,
+                "input_length": input_length,
+                "output_length": output_length,
+                "hash_ids": _component_hashes_to_blocks(
+                    components,
+                    needed,
+                    source_name=source_id,
+                    record_salt=str(row.get("request_id") or idx),
+                ),
+                "model": row.get("model_type"),
+                "workload_type": row.get("workload_type"),
+                "regions": row.get("regions"),
+            })
+    return records
+
+
+def _load_sageserve_distribution_csv(path: Path, source_id: str, max_records: Optional[int] = None) -> List[Dict[str, Any]]:
+    records: List[Dict[str, Any]] = []
+    first_timestamp: Optional[int] = None
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for idx, row in enumerate(reader):
+            if max_records is not None and len(records) >= max_records:
+                break
+            input_length = _coerce_int(row.get("ContextTokens", row.get("prompt_size")), 0)
+            if input_length <= 0:
+                continue
+            output_length = max(1, _coerce_int(row.get("GeneratedTokens", row.get("token_size")), 1))
+            absolute_ms = _parse_wall_clock_timestamp_ms(row.get("TIMESTAMP", row.get("timestamp", idx)))
+            if first_timestamp is None:
+                first_timestamp = absolute_ms
+            timestamp = max(0, absolute_ms - first_timestamp)
+            needed = blocks_for_length(input_length)
+            components = _distribution_prefix_components(source_id, timestamp, idx)
+            records.append({
+                "timestamp": timestamp,
+                "input_length": input_length,
+                "output_length": output_length,
+                "hash_ids": _component_hashes_to_blocks(
+                    components,
+                    needed,
+                    source_name=source_id,
+                    record_salt=str(idx),
+                ),
+                "workload_type": "code" if "code" in source_id else "conversation",
+            })
+    return records
 
 
 def _load_mooncake(path: Path, max_records: Optional[int] = None) -> List[Dict[str, Any]]:

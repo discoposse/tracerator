@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Study Summary · Tracerator</title>
+  <link rel="stylesheet" href="/carbon.css">
+  <link rel="stylesheet" href="/css/workspace.css">
+</head>
+<body class="workspace-body">
+  <div class="workspace-shell study-shell">
+    <nav class="workspace-nav">
+      <div class="nav-links">
+        <a href="/">Workspace</a>
+        <a href="/profiles">Profiles</a>
+        <a href="/compare">Compare</a>
+        <a href="/study" class="active">Study</a>
+      </div>
+    </nav>
+
+    <header class="page-hero">
+      <h1>Study Summary</h1>
+      <p class="tagline">
+        Turn workspace runs into a poster-style case study: interactive shape charts, an AI-written highlight narrative, and a session-keyed chat with your data via OpenAI or xAI Grok.
+      </p>
+    </header>
+
+    <div class="study-flow">
+      <div
+        class="cds-contained-tabs"
+        role="tablist"
+        aria-label="Study workflow"
+        id="study-tablist"
+      >
+        <button
+          type="button"
+          role="tab"
+          id="tab-runs"
+          class="cds-tab active"
+          aria-selected="true"
+          aria-controls="panel-runs"
+          data-step="runs"
+          tabindex="0"
+        >
+          <span class="cds-tab-icon" aria-hidden="true" data-icon></span>
+          <span class="cds-tab-text">
+            <span class="cds-tab-label">Runs</span>
+            <span class="cds-tab-secondary" data-secondary>Select</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-key"
+          class="cds-tab"
+          aria-selected="false"
+          aria-controls="panel-key"
+          data-step="key"
+          tabindex="-1"
+          disabled
+        >
+          <span class="cds-tab-icon" aria-hidden="true" data-icon></span>
+          <span class="cds-tab-text">
+            <span class="cds-tab-label">API key</span>
+            <span class="cds-tab-secondary" data-secondary>Session</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-explore"
+          class="cds-tab"
+          aria-selected="false"
+          aria-controls="panel-explore"
+          data-step="explore"
+          tabindex="-1"
+          disabled
+        >
+          <span class="cds-tab-icon" aria-hidden="true" data-icon></span>
+          <span class="cds-tab-text">
+            <span class="cds-tab-label">Explore</span>
+            <span class="cds-tab-secondary" data-secondary>Charts</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-narrative"
+          class="cds-tab"
+          aria-selected="false"
+          aria-controls="panel-narrative"
+          data-step="narrative"
+          tabindex="-1"
+          disabled
+        >
+          <span class="cds-tab-icon" aria-hidden="true" data-icon></span>
+          <span class="cds-tab-text">
+            <span class="cds-tab-label">Narrative</span>
+            <span class="cds-tab-secondary" data-secondary>AI summary</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="tab-chat"
+          class="cds-tab"
+          aria-selected="false"
+          aria-controls="panel-chat"
+          data-step="chat"
+          tabindex="-1"
+          disabled
+        >
+          <span class="cds-tab-icon" aria-hidden="true" data-icon></span>
+          <span class="cds-tab-text">
+            <span class="cds-tab-label">Chat</span>
+            <span class="cds-tab-secondary" data-secondary>Ask data</span>
+          </span>
+        </button>
+      </div>
+
+      <div class="cds-tab-panels">
+        <section
+          class="cds-tab-panel panel active"
+          role="tabpanel"
+          id="panel-runs"
+          aria-labelledby="tab-runs"
+          data-step="runs"
+        >
+          <p class="section-label">Select runs</p>
+          <p class="muted" style="max-width:40rem;line-height:1.45;margin:0 0 12px">
+            Pick up to three workspace runs. Interactive panels use local inspect stats; AI summary/chat send a compact context pack with your session API key (never stored on the server).
+          </p>
+          <div id="run-picker" class="study-run-picker"></div>
+          <div class="study-step-actions mt-3">
+            <button type="button" class="btn" id="btn-continue-runs" disabled>Continue</button>
+            <span class="muted mono" id="runs-status"></span>
+          </div>
+        </section>
+
+        <section
+          class="cds-tab-panel panel"
+          role="tabpanel"
+          id="panel-key"
+          aria-labelledby="tab-key"
+          data-step="key"
+          hidden
+        >
+          <p class="section-label">Session AI key</p>
+          <p class="muted" style="max-width:40rem;line-height:1.45;margin:0 0 12px">
+            Key stays in <span class="mono">sessionStorage</span> only — not written to disk or SQLite.
+          </p>
+          <div class="form-row">
+            <label class="field" style="min-width:160px">Provider
+              <select id="ai-provider"></select>
+            </label>
+            <label class="field" style="min-width:160px">Model
+              <select id="ai-model"></select>
+            </label>
+            <label class="field grow">API key (this browser session only)
+              <input id="ai-key" type="password" autocomplete="off" placeholder="sk-… or xai-…">
+            </label>
+          </div>
+          <p class="hint" id="ai-action-hint">Paste your OpenAI or xAI API key to continue.</p>
+          <div class="study-step-actions mt-3">
+            <button type="button" class="btn ghost" id="btn-back-key">Back</button>
+            <button type="button" class="btn" id="btn-continue-key" disabled>Continue</button>
+          </div>
+        </section>
+
+        <section
+          class="cds-tab-panel panel"
+          role="tabpanel"
+          id="panel-explore"
+          aria-labelledby="tab-explore"
+          data-step="explore"
+          hidden
+        >
+          <p class="section-label">Explore</p>
+          <p class="muted" style="max-width:40rem;line-height:1.45;margin:0 0 12px">
+            Prefix anatomy, ISL shape, and reuse heat from the selected runs.
+          </p>
+          <div class="flex-row" style="margin-bottom:12px">
+            <button type="button" class="btn ghost" id="btn-load-context">Reload context</button>
+            <span class="muted mono" id="context-status"></span>
+          </div>
+          <div id="study-source-warning" class="error-banner hidden" role="status"></div>
+
+          <div id="study-empty" class="empty-state">
+            <div style="font-weight:600;color:var(--tr-ink)">Loading study context…</div>
+            <div class="muted mt-2">Charts appear once run stats are ready.</div>
+          </div>
+
+          <div id="study-body" class="hidden">
+            <div class="stat-row study-stats" id="study-stats"></div>
+
+            <div class="study-explore-block mt-4">
+              <div class="study-sec-head">
+                <span class="sec-num">01</span>
+                <h2>Prefix anatomy</h2>
+              </div>
+              <p class="muted study-lede">Shared blocks vs unique tail — the reason a KV / prefix cache exists for this workload.</p>
+              <div class="anat" id="anat-bar" role="img" aria-label="Prefix reuse anatomy"></div>
+              <div class="keys mt-3" id="anat-keys"></div>
+            </div>
+
+            <div class="study-explore-block mt-4">
+              <div class="study-sec-head">
+                <span class="sec-num">02</span>
+                <h2>ISL shape</h2>
+              </div>
+              <p class="muted study-lede">Input-length mass by bin — prefill pressure and long-context tail at a glance.</p>
+              <div id="isl-study-chart"></div>
+            </div>
+
+            <div class="study-explore-block mt-4">
+              <div class="study-sec-head">
+                <span class="sec-num">03</span>
+                <h2>Reuse heat — top shared sessions</h2>
+              </div>
+              <p class="muted study-lede">Each row is a shared prefix root; bar length is how many requests share it.</p>
+              <div id="reuse-map" class="reuse-map"></div>
+            </div>
+          </div>
+
+          <div class="study-step-actions mt-4">
+            <button type="button" class="btn ghost" id="btn-back-explore">Back</button>
+            <button type="button" class="btn" id="btn-continue-explore" disabled>Continue to narrative</button>
+          </div>
+        </section>
+
+        <section
+          class="cds-tab-panel panel"
+          role="tabpanel"
+          id="panel-narrative"
+          aria-labelledby="tab-narrative"
+          data-step="narrative"
+          hidden
+        >
+          <p class="section-label">AI study narrative</p>
+          <p class="muted" style="max-width:40rem;line-height:1.45;margin:0 0 12px">
+            Generate a poster-style highlight narrative from the loaded study context.
+          </p>
+          <div class="study-step-actions" style="margin-bottom:14px">
+            <button type="button" class="btn" id="btn-summarize" disabled>Generate study summary</button>
+            <span class="muted mono" id="narrative-status"></span>
+          </div>
+          <div id="summary-out" class="study-markdown" aria-live="polite">
+            Generate a summary with your session key to fill this poster-style narrative.
+          </div>
+          <div class="study-step-actions mt-4">
+            <button type="button" class="btn ghost" id="btn-back-narrative">Back</button>
+            <button type="button" class="btn" id="btn-continue-narrative" disabled>Continue to chat</button>
+          </div>
+        </section>
+
+        <section
+          class="cds-tab-panel panel"
+          role="tabpanel"
+          id="panel-chat"
+          aria-labelledby="tab-chat"
+          data-step="chat"
+          hidden
+        >
+          <p class="section-label">Chat with your data</p>
+          <p class="muted" style="max-width:40rem;line-height:1.45;margin:0 0 12px">
+            Ask follow-ups about TTFT, reuse, burst, or tier implications. Uses the same session key and study context.
+          </p>
+          <div id="chat-log" class="chat-log" aria-live="polite"></div>
+          <form id="chat-form" class="chat-form mt-3">
+            <input id="chat-input" type="text" placeholder="Ask about TTFT, reuse, burst, or tier implications…" autocomplete="off">
+            <button type="submit" class="btn" id="btn-chat">Send</button>
+          </form>
+          <div class="study-step-actions mt-4">
+            <button type="button" class="btn ghost" id="btn-back-chat">Back</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+  <script src="/js/study.js"></script>
+</body>
+</html>

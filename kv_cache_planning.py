@@ -77,6 +77,14 @@ MODEL_CATALOG: Dict[str, ModelSpec] = {
         fields={"num_hidden_layers": 64, "num_key_value_heads": 8, "head_dim": 128},
         source="Generic production GQA profile for capacity what-if analysis",
     ),
+    "qwen2.5-7b-instruct-1m": ModelSpec(
+        id="qwen2.5-7b-instruct-1m",
+        label="Qwen 2.5 7B Instruct 1M",
+        family="Qwen",
+        formula="standard_gqa",
+        fields={"num_hidden_layers": 28, "num_key_value_heads": 4, "head_dim": 128},
+        source="https://huggingface.co/Qwen/Qwen2.5-7B-Instruct-1M/blob/main/config.json",
+    ),
     "llama3.1-70b-gqa": ModelSpec(
         id="llama3.1-70b-gqa",
         label="Llama 3.1 70B GQA",
@@ -84,6 +92,28 @@ MODEL_CATALOG: Dict[str, ModelSpec] = {
         formula="standard_gqa",
         fields={"num_hidden_layers": 80, "num_key_value_heads": 8, "head_dim": 128},
         source="Generic Llama-family GQA capacity profile",
+    ),
+    "deepseek-r1-distill-llama-70b": ModelSpec(
+        id="deepseek-r1-distill-llama-70b",
+        label="DeepSeek R1 Distill Llama 70B",
+        family="DeepSeek / Llama",
+        formula="standard_gqa",
+        fields={"num_hidden_layers": 80, "num_key_value_heads": 8, "head_dim": 128},
+        source=(
+            "https://huggingface.co/neuralmagic/"
+            "DeepSeek-R1-Distill-Llama-70B-FP8-dynamic/blob/main/config.json"
+        ),
+    ),
+    "llama4-scout-17b-16e": ModelSpec(
+        id="llama4-scout-17b-16e",
+        label="Llama 4 Scout 17B 16E",
+        family="Llama 4",
+        formula="standard_gqa",
+        fields={"num_hidden_layers": 48, "num_key_value_heads": 8, "head_dim": 128},
+        source=(
+            "https://huggingface.co/RedHatAI/"
+            "Llama-4-Scout-17B-16E-Instruct-FP8-dynamic/blob/main/config.json"
+        ),
     ),
 }
 

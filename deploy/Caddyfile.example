@@ -1,0 +1,7 @@
+# Example Caddy site block. Copy into your reverse-proxy config and
+# change the hostname. Tracerator listens on port 8008 in Docker.
+
+tracerator.example.com {
+	encode zstd gzip
+	reverse_proxy tracerator:8008
+}

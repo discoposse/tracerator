@@ -1,0 +1,36 @@
+services:
+  app:
+    build: .
+    container_name: tracerator
+    restart: unless-stopped
+    ports:
+      - "${TRACERATOR_PUBLISH_PORT:-8008}:8008"
+    environment:
+      TRACERATOR_CC_WEKA_DIR: /external/cc-traces-weka-with-subagents-051826
+      TRACERATOR_RAGPULSE_DIR: /external/RAGPulse
+      TRACERATOR_CODEX_SWEBENCHPRO_DIR: /external/codex_swebenchpro_traces
+      TRACERATOR_AIPERF_TOOLKIT_DIR: /external/aiperf-toolkit
+      TRACERATOR_SAGESERVE_DIR: /external/SageServe
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-${HF_TOKEN:-}}
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ${TRACERATOR_CC_WEKA_DIR:-./external/cc-traces-weka-with-subagents-051826}:/external/cc-traces-weka-with-subagents-051826:ro
+      - ${TRACERATOR_RAGPULSE_DIR:-./external/RAGPulse}:/external/RAGPulse:ro
+      - ${TRACERATOR_CODEX_SWEBENCHPRO_DIR:-./external/codex_swebenchpro_traces}:/external/codex_swebenchpro_traces:ro
+      - ${TRACERATOR_AIPERF_TOOLKIT_DIR:-./external/aiperf-toolkit}:/external/aiperf-toolkit:ro
+      - ${TRACERATOR_SAGESERVE_DIR:-./external/SageServe}:/external/SageServe:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8008/', timeout=5)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s

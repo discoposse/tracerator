@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run · Tracerator</title>
+  <link rel="stylesheet" href="/carbon.css">
+  <link rel="stylesheet" href="/css/workspace.css">
+</head>
+<body class="workspace-body">
+  <div class="workspace-shell">
+    <nav class="workspace-nav">
+      <div class="nav-links">
+        <a href="/">Workspace</a>
+        <a href="/profiles">Profiles</a>
+        <a href="/compare">Compare</a>
+        <a href="/study">Study</a>
+      </div>
+      <div class="flex-row">
+        <button type="button" class="btn btn-ghost btn-sm" id="delete-run">Delete</button>
+        <a class="btn btn-sm" id="download-zip" href="#">Download zip</a>
+      </div>
+    </nav>
+
+    <header class="run-header">
+      <div>
+        <h1 id="run-title">Run</h1>
+        <p class="sub" id="run-sub"></p>
+      </div>
+      <span class="status-chip" id="run-status">draft</span>
+    </header>
+
+    <div class="kpi-strip" id="kpi-strip">
+      <div class="kpi"><div class="label">Requests</div><div class="value" id="kpi-reqs">—</div></div>
+      <div class="kpi"><div class="label">Burst max</div><div class="value" id="kpi-burst">—</div></div>
+      <div class="kpi"><div class="label">Prefix hit</div><div class="value" id="kpi-hit">—</div></div>
+      <div class="kpi"><div class="label">Integrity</div><div class="value" id="kpi-integrity">—</div></div>
+      <div class="kpi"><div class="label">Replay</div><div class="value" id="kpi-replay">—</div></div>
+    </div>
+
+    <div class="stepper" id="stepper" role="tablist">
+      <button type="button" data-step="generate" class="active">1 · Generate</button>
+      <button type="button" data-step="validate">2 · Validate</button>
+      <button type="button" data-step="replay">3 · Replay / Download</button>
+      <button type="button" data-step="inspect">4 · Inspect</button>
+      <button type="button" data-step="sizing">5 · Size</button>
+      <button type="button" data-step="narrative">6 · Narrative</button>
+    </div>
+
+    <!-- Generate -->
+    <section class="step-panel active panel" id="step-generate">
+      <p class="section-label">Trace shape</p>
+      <div class="generate-layout">
+        <div class="generate-controls">
+          <div class="form-grid">
+            <label class="field">Run name
+              <input id="run-name" type="text">
+            </label>
+            <label class="field">Baseline source
+              <select id="source-select"></select>
+            </label>
+            <label class="field standard-source-field">Scenario
+              <select id="scenario-select">
+                <option value="standard">Standard generated trace</option>
+                <option value="wall_clock_win">KV reuse stress scenario</option>
+              </select>
+            </label>
+            <label class="field standard-source-field">ISL profile
+              <select id="isl-profile">
+                <option value="empirical">Empirical source</option>
+                <option value="rag">RAG-like 2K-16K</option>
+                <option value="balanced">Balanced enterprise</option>
+                <option value="long_context">Long-context stress</option>
+                <option value="short_chat">Short-chat skew</option>
+              </select>
+            </label>
+            <label class="field">AIPerf dataset
+              <select id="aiperf-dataset-style"></select>
+            </label>
+            <label class="field standard-source-field">Scale <span class="mono" id="scale-val">0.05</span>
+              <input id="scale" type="range" min="0.01" max="1" step="0.01" value="0.05">
+            </label>
+            <label class="field standard-source-field">Reuse bias <span class="mono" id="reuse-val">0.5</span>
+              <input id="reuse_bias" type="range" min="0" max="1" step="0.05" value="0.5">
+            </label>
+            <label class="field standard-source-field">Input mult <span class="mono" id="in-val">1</span>
+              <input id="input_mult" type="range" min="0.25" max="4" step="0.05" value="1">
+            </label>
+            <label class="field standard-source-field">Output mult <span class="mono" id="out-val">1</span>
+              <input id="output_mult" type="range" min="0.25" max="4" step="0.05" value="1">
+            </label>
+            <label class="field standard-source-field">New sessions <span class="mono" id="sess-val">0.1</span>
+              <input id="new_sessions" type="range" min="0" max="1" step="0.05" value="0.1">
+            </label>
+            <label class="field">Seed
+              <input id="seed" type="number" value="42">
+            </label>
+          </div>
+          <div class="source-config-panel hidden" id="lightinferra-config">
+            <div>
+              <p class="section-label">External-KV golden case</p>
+              <p class="muted">
+                Generates an exact Turn-1 warm and Turn-2 resume pair. Run the downloaded trace
+                once with cache regeneration and once with an external KV store enabled.
+              </p>
+            </div>
+            <div class="form-grid mt-3">
+              <label class="field">Test set
+                <select id="lightinferra-suite"></select>
+              </label>
+              <label class="field">Model
+                <select id="lightinferra-model"></select>
+              </label>
+              <label class="field">Context
+                <select id="lightinferra-context"></select>
+              </label>
+              <label class="field">Repetitions
+                <input id="lightinferra-repetitions" type="number" min="1" max="100" value="1">
+              </label>
+              <label class="field">Physical page tokens
+                <input id="lightinferra-physical-page-tokens" type="number" min="1" value="16">
+              </label>
+              <label class="field">Resume tail tokens
+                <input id="lightinferra-resume-tail-tokens" type="number" min="1" value="32">
+              </label>
+              <label class="field">Output tokens
+                <input id="lightinferra-output-tokens" type="number" min="1" value="32">
+              </label>
+            </div>
+            <p class="source-config-note" id="lightinferra-reference-note"></p>
+          </div>
+          <p class="muted mt-2" id="aiperf-dataset-hint"></p>
+          <div class="flex-row mt-4">
+            <button type="button" class="btn" id="btn-generate">Generate &amp; save to run</button>
+            <span class="muted mono" id="generate-status"></span>
+          </div>
+        </div>
+        <div class="generated-trace-card" id="generated-trace-card" hidden></div>
+      </div>
+    </section>
+
+    <!-- Validate -->
+    <section class="step-panel panel" id="step-validate">
+      <p class="section-label">AIPerf analyze</p>
+      <p class="muted">Confirms the stored trace has full integrity for mooncake_trace replay.</p>
+      <div class="form-grid mt-3">
+        <label class="field">Backend
+          <select id="engine">
+            <option value="omlx">oMLX (Apple Silicon)</option>
+            <option value="vllm">vLLM</option>
+            <option value="sglang">SGLang</option>
+            <option value="ollama">Ollama</option>
+            <option value="openai">OpenAI-compatible</option>
+          </select>
+        </label>
+        <label class="field">Server URL
+          <input id="server-url" type="text" placeholder="http://host.docker.internal:8000">
+        </label>
+        <label class="field">Model
+          <input id="model" type="text" placeholder="Qwen/Qwen3-0.6B">
+        </label>
+        <label class="field">Tokenizer (HF repo id)
+          <input id="tokenizer" type="text" placeholder="Qwen/Qwen2.5-7B-Instruct">
+        </label>
+        <label class="field">Subset (replay)
+          <input id="subset" type="number" value="30" min="1">
+        </label>
+        <label class="field">Replay source
+          <select id="aiperf-public-dataset"></select>
+        </label>
+        <label class="field">HF subset override
+          <input id="hf-subset" type="text" placeholder="Optional">
+        </label>
+        <label class="field">Inference API Key
+          <input id="inference-api-key" type="password" autocomplete="off" placeholder="oMLX: from Settings, or leave blank if OMLX_API_KEY is set">
+        </label>
+      </div>
+      <p class="muted mt-2" id="aiperf-server-hint">Choose a backend (oMLX / vLLM / SGLang / …). Tracerator UI is :8008 — Server URL points at the inference server.</p>
+      <p class="muted mt-2" id="aiperf-public-dataset-hint"></p>
+      <div class="flex-row mt-4">
+        <button type="button" class="btn" id="btn-analyze">Run analyze-trace</button>
+        <button type="button" class="btn btn-ghost" id="btn-goto-replay" hidden>Replay this trace</button>
+        <span class="muted mono" id="validate-status"></span>
+      </div>
+      <pre class="raw mt-3" id="analyze-out" hidden></pre>
+    </section>
+
+    <!-- Replay / Download -->
+    <section class="step-panel panel" id="step-replay">
+      <p class="section-label">Replay or hand off</p>
+      <div class="flex-row">
+        <button type="button" class="btn" id="btn-replay">Replay subset in AIPerf</button>
+        <a class="btn btn-ghost" id="download-zip-2" href="#">Download run zip</a>
+      </div>
+      <p class="muted mt-3">Or upload results from a local AIPerf run to attach to this workspace run.</p>
+      <div class="upload-drop mt-3" id="upload-drop">
+        <p>Drop <span class="mono">replay_result.json</span>, analysis JSON, or an AIPerf artifact zip here</p>
+        <input type="file" id="upload-file" accept=".json,.zip,application/json,application/zip" style="margin-top:12px;">
+      </div>
+      <span class="muted mono mt-2" id="upload-status"></span>
+    </section>
+
+    <!-- Inspect -->
+    <section class="step-panel panel" id="step-inspect">
+      <div class="tab-bar" id="inspect-tabs">
+        <button type="button" data-tab="overview" class="active">Overview</button>
+        <button type="button" data-tab="workload">Workload</button>
+        <button type="button" data-tab="timeline">Timeline</button>
+        <button type="button" data-tab="prefix">Prefix / Trace</button>
+        <button type="button" data-tab="replay-map">Replay Map</button>
+        <button type="button" data-tab="waterfall">Waterfall</button>
+        <button type="button" data-tab="events">Events</button>
+        <button type="button" data-tab="results">Results</button>
+        <button type="button" data-tab="data">Data</button>
+      </div>
+
+      <div class="tab-panel active" id="tab-overview">
+        <p id="auto-summary" class="narrative-body"></p>
+      </div>
+      <div class="tab-panel" id="tab-workload">
+        <p class="section-label">ISL distribution</p>
+        <div id="isl-chart"></div>
+        <p class="section-label mt-4">OSL distribution</p>
+        <div id="osl-chart"></div>
+      </div>
+      <div class="tab-panel" id="tab-timeline">
+        <div id="timeline-chart"></div>
+        <div id="burst-list" class="mt-3"></div>
+      </div>
+      <div class="tab-panel" id="tab-prefix">
+        <div id="hot-blocks" class="mb-3"></div>
+        <div id="prefix-cards"></div>
+      </div>
+      <div class="tab-panel replay-tab" id="tab-replay-map">
+        <div class="replay-toolbar">
+          <div class="segmented-control" role="group" aria-label="Replay representation">
+            <button type="button" class="active" data-replay-mode="physical" aria-pressed="true">Physical</button>
+            <button type="button" data-replay-mode="logical" aria-pressed="false">Logical</button>
+          </div>
+          <button type="button" class="icon-btn" id="replay-play" aria-label="Play replay" title="Play replay">&#9654;</button>
+          <label class="replay-scrubber">Trace position
+            <input type="range" id="replay-time" min="0" max="1000" value="0" step="1">
+          </label>
+          <label class="replay-speed">Speed
+            <select id="replay-speed">
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+            </select>
+          </label>
+        </div>
+        <div class="replay-stage" id="replay-stage">
+          <canvas id="replay-canvas" aria-label="Animated trace resource replay"></canvas>
+          <div class="replay-metrics" aria-live="polite">
+            <span id="replay-clock">t+0 ms</span>
+            <span id="replay-running">0 running</span>
+            <span id="replay-cache">0% cache pressure</span>
+          </div>
+          <div class="replay-empty" id="replay-empty">Open this view after generating a trace.</div>
+        </div>
+        <p class="muted replay-caption" id="replay-caption"></p>
+      </div>
+      <div class="tab-panel" id="tab-waterfall">
+        <div id="waterfall-chart"></div>
+      </div>
+      <div class="tab-panel" id="tab-events">
+        <div class="events-rail" id="events-rail"></div>
+      </div>
+      <div class="tab-panel" id="tab-results">
+        <div id="align-panel">
+          <p class="muted">Upload or run a replay to compare expected vs observed ISL and latencies.</p>
+        </div>
+        <div id="timeslice-chart" class="mt-4"></div>
+      </div>
+      <div class="tab-panel" id="tab-data">
+        <p class="section-label">Sample trace lines</p>
+        <pre class="raw" id="sample-trace"></pre>
+        <p class="section-label mt-3">Manifest</p>
+        <pre class="raw" id="manifest-raw"></pre>
+      </div>
+    </section>
+
+    <!-- Sizing -->
+    <section class="step-panel panel" id="step-sizing">
+      <p class="section-label">Trace-driven sizing study</p>
+      <div class="form-grid">
+        <label class="field">llm-d latency profile
+          <select id="sizing-profile"></select>
+        </label>
+        <label class="field">Topology
+          <select id="sizing-topology">
+            <option value="aggregated">Aggregated prefill + decode</option>
+            <option value="disaggregated">Disaggregated prefill / decode</option>
+          </select>
+        </label>
+        <label class="field">Calibration
+          <select id="sizing-calibration">
+            <option value="auto">Use replay when available</option>
+            <option value="profile">Profile assumptions only</option>
+            <option value="replay">Attached AIPerf replay</option>
+          </select>
+        </label>
+        <label class="field">Analytical baseline
+          <select id="sizing-analytical-mode">
+            <option value="guardrail">Profile + roofline guardrail</option>
+            <option value="informational">Report only</option>
+            <option value="analytical">Roofline baseline</option>
+          </select>
+        </label>
+        <label class="field">Model architecture
+          <select id="sizing-model"></select>
+        </label>
+        <label class="field">Hardware SKU
+          <select id="sizing-hardware"></select>
+        </label>
+        <label class="field">Tensor parallel
+          <input id="sizing-tp" type="number" value="1" min="1" max="72" step="1">
+        </label>
+        <label class="field">Weight precision
+          <select id="sizing-weight-precision"></select>
+        </label>
+        <label class="field">KV precision
+          <select id="sizing-kv-precision"></select>
+        </label>
+        <label class="field">Activation precision
+          <select id="sizing-activation-precision"></select>
+        </label>
+        <label class="field">HBM reserve
+          <div class="input-suffix">
+            <input id="sizing-memory-headroom" type="number" value="10" min="0" max="50" step="1">
+            <span>%</span>
+          </div>
+        </label>
+        <label class="field">KV cache GiB / replica
+          <input id="sizing-cache-gib" type="number" value="40" min="0.1" step="1">
+        </label>
+        <label class="field">Max sequences / replica
+          <input id="sizing-max-seqs" type="number" min="1" step="1" placeholder="From profile">
+        </label>
+        <label class="field">Target p95 TTFT (ms)
+          <input id="sizing-target-ttft" type="number" value="1000" min="1" step="50">
+        </label>
+        <label class="field">Max replicas to sweep
+          <input id="sizing-max-replicas" type="number" value="16" min="1" max="128" step="1">
+        </label>
+      </div>
+      <p class="muted mt-2" id="sizing-profile-hint"></p>
+      <div class="flex-row mt-4">
+        <button type="button" class="btn" id="btn-run-sizing">Run sizing sweep</button>
+        <span class="muted mono" id="sizing-status"></span>
+      </div>
+      <div id="sizing-result" class="sizing-result" hidden>
+        <div class="sizing-summary">
+          <div><span>Replicas</span><strong id="sizing-replicas">—</strong></div>
+          <div><span>Total GPUs</span><strong id="sizing-gpus">—</strong></div>
+          <div><span>p95 TTFT</span><strong id="sizing-ttft">—</strong></div>
+          <div><span>KV cache</span><strong id="sizing-cache">—</strong></div>
+        </div>
+        <p class="sizing-narrative" id="sizing-narrative"></p>
+        <section class="analytical-report" id="analytical-report">
+          <div class="analytical-heading">
+            <div>
+              <p class="section-label">Analytical envelope</p>
+              <strong id="analytical-selection">—</strong>
+            </div>
+            <span class="status-pill" id="analytical-fit">—</span>
+          </div>
+          <div class="analytical-grid">
+            <div>
+              <span>HBM / GPU</span>
+              <strong id="analytical-memory">—</strong>
+              <div class="memory-meter"><span id="analytical-memory-fill"></span></div>
+            </div>
+            <div>
+              <span>Prefill floor</span>
+              <strong id="analytical-prefill">—</strong>
+            </div>
+            <div>
+              <span>Decode floor</span>
+              <strong id="analytical-decode">—</strong>
+            </div>
+            <div>
+              <span>Prefill : decode</span>
+              <strong id="analytical-pd-ratio">—</strong>
+            </div>
+          </div>
+          <div class="phase-table" id="analytical-phases"></div>
+          <p class="muted" id="analytical-narrative"></p>
+        </section>
+        <div class="sizing-sweep" id="sizing-sweep"></div>
+        <div class="flex-row mt-3">
+          <button type="button" class="btn btn-ghost btn-sm" id="copy-llmd-config">Copy llm-d config</button>
+        </div>
+        <pre class="raw mt-3" id="llmd-config"></pre>
+      </div>
+    </section>
+
+    <!-- Narrative -->
+    <section class="step-panel panel" id="step-narrative">
+      <div class="flex-row" style="justify-content:space-between;">
+        <p class="section-label" style="margin:0;">Workload narrative</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="copy-narrative">Copy markdown</button>
+      </div>
+      <div class="narrative-body mt-3" id="narrative-body"></div>
+    </section>
+  </div>
+  <script src="/js/trace_card.js"></script>
+  <script src="/js/run.js"></script>
+  <script type="module" src="/js/replay_scene.js"></script>
+</body>
+</html>

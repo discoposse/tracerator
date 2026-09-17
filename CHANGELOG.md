@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2026-09
+
+### Changed
+- Public community edition: vendor-neutral LightInferra-style golden traces, generic self-host docs, and Diátaxis documentation under `docs/`.
+- Golden source id is `lightinferra-golden`. The generate API still accepts `lightinferra-ddn-golden`.
+- Docker Compose extra-source mounts default to `./external/...` instead of a personal laptop path.
+- Production Compose publishes port 8008 as container `tracerator` and no longer requires a private Docker network.
+
+### Removed
+- Internal deploy hostnames, private GitHub URLs, and product-specific Infinia pass/fail copy from the public tree.
+
 ## [Unreleased] - 2026-06
 
 ### Added
@@ -17,10 +28,9 @@ All notable changes to this project will be documented in this file.
 - Improved `approx_cache_hit_ratio` computation in manifest (larger causal sample) and in the simple demo (`app.py` now computes it from actual generated prefix overlaps for realism).
 - Documentation:
   - Dedicated section in `Mooncake/trace_gen/README.md` on controlling cache hit ratio.
-  - Expanded "Impact on Real NVIDIA/AMD Gear", Mac/Apple Silicon notes, and quick starts in `docs/VALIDATING_WITH_AIPERF.md`.
-  - Updated root `README.md`, embedded zip READMEs, script help, Streamlit UI, and launchers with toolkit links and usage guidance.
+  - Expanded hardware notes and quick starts in `docs/how-to/validate-with-aiperf.md`.
+  - Updated root `README.md`, embedded zip READMEs, script help, UI, and launchers with toolkit links and usage guidance.
   - New `CHANGELOG.md`.
-- Streamlit UI: new "Reuse temperature (sharpness)" slider + updated presets and help text.
 - Validation: clearer notes in validator script reports for non-NVIDIA environments (GPU plots require DCGM).
 
 ### Changed
@@ -32,4 +42,4 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Weak `reuse_bias` behavior on injected/new requests (now amplified for realistic Mooncake-style prefix sharing).
 
-See `docs/VALIDATING_WITH_AIPERF.md` for full usage, examples, and validation tips.
+See `docs/how-to/validate-with-aiperf.md` for usage.

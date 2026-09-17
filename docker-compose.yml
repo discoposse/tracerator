@@ -2,10 +2,36 @@ services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "8008:8008"
+    environment:
+      # Reach an inference server running on the Docker host (vLLM, Ollama, etc.).
+      TRACERATOR_INFERENCE_HOST: ${TRACERATOR_INFERENCE_HOST:-host.docker.internal}
+      AIPERF_BIN: /usr/local/bin/aiperf
+      # Hugging Face auth for AIPerf tokenizer/model downloads inside the container.
+      # Compose reads HF_TOKEN from a repo-root .env file and/or your shell when you run `docker compose up`.
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-${HF_TOKEN:-}}
+      HF_HOME: /root/.cache/huggingface
+      # Optional: real OpenAI key for other tools — NOT forwarded to local MLX/vLLM by default.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Default inference backend for the UI (omlx | vllm | sglang | ollama | openai).
+      TRACERATOR_INFERENCE_BACKEND: ${TRACERATOR_INFERENCE_BACKEND:-omlx}
+      # Local inference auth. oMLX reads OMLX_API_KEY from the host env / .env.
+      TRACERATOR_INFERENCE_API_KEY: ${TRACERATOR_INFERENCE_API_KEY:-}
+      OMLX_API_KEY: ${OMLX_API_KEY:-}
+      VLLM_API_KEY: ${VLLM_API_KEY:-}
+      SGLANG_API_KEY: ${SGLANG_API_KEY:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+    env_file:
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - .:/app  # bind mount so the containerized app's UI (and code) is always the live version from the tree (site/index.html etc). Restart container after Python changes; HTML/JS update on browser refresh.
-      - ${TRACERATOR_RAGPULSE_DIR:-/Users/ewright/Documents/RAGPulse}:/external/RAGPulse:ro
-      - ${TRACERATOR_CC_WEKA_DIR:-/Users/ewright/Documents/cc-traces-weka-with-subagents-051826}:/external/cc-traces-weka-with-subagents-051826:ro
-      - ${TRACERATOR_CODEX_SWEBENCHPRO_DIR:-/Users/ewright/Documents/codex_swebenchpro_traces}:/external/codex_swebenchpro_traces:ro
-      - ${TRACERATOR_AIPERF_TOOLKIT_DIR:-/Users/ewright/Documents/aiperf-toolkit}:/external/aiperf-toolkit:ro
+      - .:/app
+      - ${TRACERATOR_HF_CACHE_DIR:-${HOME}/.cache/huggingface}:/root/.cache/huggingface
+      - ${TRACERATOR_RAGPULSE_DIR:-./external/RAGPulse}:/external/RAGPulse:ro
+      - ${TRACERATOR_CC_WEKA_DIR:-./external/cc-traces-weka-with-subagents-051826}:/external/cc-traces-weka-with-subagents-051826:ro
+      - ${TRACERATOR_CODEX_SWEBENCHPRO_DIR:-./external/codex_swebenchpro_traces}:/external/codex_swebenchpro_traces:ro
+      - ${TRACERATOR_AIPERF_TOOLKIT_DIR:-./external/aiperf-toolkit}:/external/aiperf-toolkit:ro
+      - ${TRACERATOR_SAGESERVE_DIR:-./external/SageServe}:/external/SageServe:ro

@@ -1,0 +1,33 @@
+name: Bug
+description: Something in generation, UI, or replay is wrong
+labels: ["bug"]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: Commands or UI clicks that reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Environment
+      placeholder: Docker version, OS, Tracerator commit
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Trace snippet
+      description: A few JSONL lines if the bug is in generation or import. Strip secrets.

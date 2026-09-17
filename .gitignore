@@ -253,6 +253,16 @@ $RECYCLE.BIN/
 # Virtual environments for the UI tool
 .venv_ui/
 venv_ui/
+sglang-env/
+
+# Accidental Node installs (this project is Python)
+node_modules/
+package.json
+package-lock.json
+
+# Local agent skill installs (not part of Tracerator)
+.agents/skills/
+skills-lock.json
 
 # Local test outputs / large generated traces (keep only small demos)
 testout/
@@ -271,3 +281,6 @@ profile_export*.json
 tracerator-aiperf-validate-*.txt
 tracerator-aiperf-validate-analysis-*.json
 /tmp/tracerator-validate-subset-*.jsonl
+
+# Written on the VPS by scripts/deploy-prod.sh (not source of truth)
+.deployed-revision

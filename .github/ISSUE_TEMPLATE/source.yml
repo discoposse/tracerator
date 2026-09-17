@@ -1,0 +1,18 @@
+name: Source request
+description: Ask for a new baseline or importer
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: source
+    attributes:
+      label: Workload
+      description: Where the traces live, license, and whether they already have hash_ids.
+    validations:
+      required: true
+  - type: textarea
+    id: job
+    attributes:
+      label: Job to be done
+      description: What serving question this source would answer.
+    validations:
+      required: true

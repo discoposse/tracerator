@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Convenience launcher for Tracerator UI (always prefers the containerized path).
-# Includes a pre-flight check for docker + recommended utilities like jq.
+# Convenience launcher for Tracerator UI (background docker compose).
+# Canonical launch/relaunch from the repo root: docker compose up [--build]
 
 set -euo pipefail
 
@@ -66,14 +66,15 @@ else
   docker compose up -d --build --force-recreate
 fi
 
-echo "Open http://localhost:8000 for the UI."
-echo "The launcher now recreates the container so backend changes (ISL profiles/import-ready manifests) are live."
+echo "Open http://localhost:8008 for the UI."
+echo "Canonical launch/relaunch from the repo root: docker compose up [--build]"
+echo "This script runs docker compose up -d --build in the background."
 echo ""
-echo "After generating traces, validate them with AIPerf (exact timing + KV prefix behavior):"
+echo "AIPerf validation is available in the Trace Generator UI (runs inside the container)."
+echo "For CLI validation from the host:"
 echo "  ./scripts/validate-with-aiperf.sh --analyze-only"
 echo "  ./scripts/validate-with-aiperf.sh --with-replay --subset 30"
-echo "See the full instruction set: docs/VALIDATING_WITH_AIPERF.md"
-echo "Also: scripts/validate-with-aiperf.sh --help and Mooncake/trace_gen/README.md"
+echo "See docs/how-to/validate-with-aiperf.md"
 echo ""
 echo "For a complete local AIPerf + vLLM/Ollama stack (setup scripts, venvs, LMCache):"
 echo "  https://github.com/discoposse/aiperf-toolkit"

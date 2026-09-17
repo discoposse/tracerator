@@ -1,0 +1,15 @@
+.git
+.DS_Store
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+artifacts
+tests
+docs
+assets
+.deployed-revision
+.env
+Mooncake/.DS_Store
+Mooncake/trace_gen/.venv_ui
+Mooncake/trace_gen/__pycache__

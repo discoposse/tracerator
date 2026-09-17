@@ -3,144 +3,115 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Trace Compare · Tracerator</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .top-nav a { border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; transition: background 140ms ease, color 140ms ease, border-color 140ms ease; }
-    .compare-table { width: 100%; border-collapse: collapse; }
-    .compare-table th, .compare-table td { padding: 9px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
-    .compare-table th { text-align: left; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
-    .compare-table td { font-size: 12px; color: #0f172a; }
-    .bucket-row { display: grid; grid-template-columns: 76px minmax(180px, 1fr); gap: 12px; align-items: start; min-height: 36px; }
-    .trace-bar-row { display: grid; grid-template-columns: minmax(90px, 150px) minmax(120px, 1fr) 112px; gap: 8px; align-items: center; min-height: 22px; }
-    .track { height: 12px; background: #e2e8f0; border-radius: 4px; overflow: hidden; }
-    .fill { height: 100%; border-radius: 4px; min-width: 0; }
-    @page { size: letter; margin: 0.22in; }
-    @media print {
-      html, body { width: 8.06in; min-height: 10.56in; overflow: hidden; }
-      body {
-        background: white !important;
-        color: #0f172a !important;
-        font-size: 10px !important;
-        line-height: 1.25 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-      }
-      body > .max-w-6xl { max-width: none !important; width: 8.06in !important; margin: 0 !important; padding: 0 !important; }
-      .no-print { display: none !important; }
-      .report-panel { border: none !important; box-shadow: none !important; padding: 0 !important; border-radius: 0 !important; }
-      .report-panel > .flex:first-child { align-items: flex-start !important; gap: 8px !important; margin-bottom: 6px !important; }
-      .report-panel h2 { font-size: 20px !important; line-height: 1.1 !important; margin-top: 1px !important; }
-      #report-subtitle { font-size: 9px !important; margin-top: 2px !important; }
-      #legend { max-width: 3.6in !important; gap: 4px 10px !important; font-size: 9px !important; line-height: 1.1 !important; }
-      #summary-cards { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 6px !important; margin-bottom: 6px !important; }
-      #summary-cards > div { padding: 6px !important; border-radius: 6px !important; background: #f8fafc !important; }
-      #summary-cards .text-2xl { font-size: 17px !important; line-height: 1.05 !important; }
-      #summary-cards .text-\[10px\] { font-size: 8.5px !important; line-height: 1.15 !important; }
-      #vertical-chart svg { width: 100% !important; height: 2.25in !important; display: block !important; }
-      #shared-chart { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 4px 10px !important; }
-      .bucket-row { display: block !important; min-height: 0 !important; }
-      .bucket-row > div:first-child { margin-bottom: 2px !important; padding-top: 0 !important; font-size: 9px !important; line-height: 1.1 !important; }
-      .trace-bar-row { grid-template-columns: minmax(70px, 1fr) 74px !important; min-height: 14px !important; gap: 4px !important; font-size: 8.5px !important; line-height: 1.05 !important; }
-      .trace-bar-row > div:first-child { display: none !important; }
-      .track { height: 8px !important; }
-      .compare-table th, .compare-table td { padding: 3px 5px !important; font-size: 8.5px !important; line-height: 1.1 !important; }
-      .compare-table th { font-size: 7.5px !important; }
-      .report-note { font-size: 7.5px !important; line-height: 1.15 !important; margin-top: 4px !important; }
-      .border-t { padding-top: 6px !important; margin-bottom: 6px !important; }
-      .border-t .mb-3 { margin-bottom: 4px !important; }
-      .uppercase, [class*="uppercase"] { letter-spacing: .035em !important; }
-    }
-  </style>
+  <title>Compare · Tracerator</title>
+  <link rel="stylesheet" href="/carbon.css">
+  <link rel="stylesheet" href="/css/workspace.css">
 </head>
-<body class="bg-slate-50 text-slate-900">
-  <div class="max-w-6xl mx-auto p-8">
-    <nav class="top-nav flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
-      <div>
-        <h1 class="text-4xl font-semibold tracking-tight">Trace Compare</h1>
-        <p class="text-slate-600 mt-1">Compare up to five generated trace manifests in one executive-ready view.</p>
-      </div>
-      <div class="flex items-center gap-2 bg-white border border-slate-200 rounded-xl p-1">
-        <a href="/" class="text-slate-600 hover:text-slate-950 hover:bg-slate-50">Trace Generator</a>
-        <a href="/compare" class="bg-slate-900 text-white">Trace Comparison</a>
+<body class="workspace-body">
+  <div class="workspace-shell">
+    <nav class="workspace-nav no-print">
+      <div class="nav-links">
+        <a href="/">Workspace</a>
+        <a href="/profiles">Profiles</a>
+        <a href="/compare" class="active">Compare</a>
+        <a href="/study">Study</a>
       </div>
     </nav>
 
-    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 no-print">
-      <div class="flex flex-wrap items-end gap-3">
-        <div class="grow min-w-64">
-          <label for="manifest-files" class="text-sm font-medium text-slate-600">Manifest files</label>
-          <input id="manifest-files" type="file" accept="application/json,.json" multiple class="mt-2 block w-full border border-slate-300 rounded px-2 py-2 text-sm bg-white">
-          <div class="text-[10px] text-slate-400 mt-1">Select 1-5 manifest.json files. Files are parsed locally in this browser.</div>
+    <header class="page-hero no-print">
+      <h1>Compare</h1>
+      <p class="tagline">
+        Compare up to five generated manifests or AIPerf replay results in one executive-ready view — ISL shape, reuse, and observed latency side by side.
+      </p>
+    </header>
+
+    <section class="panel compare-toolbar no-print">
+      <p class="section-label">Artifacts</p>
+      <div class="compare-toolbar-grid">
+        <label class="field" for="manifest-files">Add manifest or replay JSON
+          <input id="manifest-files" type="file" accept="application/json,.json">
+          <span class="hint" id="manifest-count">Add manifest.json or replay_result.json files one at a time, up to 5 total. Files are parsed locally in this browser.</span>
+        </label>
+        <div class="compare-toolbar-side">
+          <label class="field compare-run-field" for="workspace-run">Or load workspace run
+            <span class="compare-control-row">
+              <select id="workspace-run">
+                <option value="">Select a run…</option>
+              </select>
+              <button id="load-workspace-run" type="button" class="btn btn-ghost btn-sm">Add</button>
+            </span>
+          </label>
+          <div class="compare-control-row compare-export-row" role="group" aria-label="Report actions">
+            <button id="export-report" type="button" class="btn btn-sm" disabled>Export HTML</button>
+            <button id="print-report" type="button" class="btn btn-ghost btn-sm" disabled>Print / PDF</button>
+            <button id="clear-traces" type="button" class="btn btn-ghost btn-sm" disabled>Clear</button>
+          </div>
         </div>
-        <button id="export-report" class="px-4 py-2.5 bg-slate-900 hover:bg-black active:bg-slate-950 text-white text-sm font-medium rounded-xl transition disabled:opacity-40" disabled>Export report HTML</button>
-        <button id="print-report" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-sm font-medium rounded-xl transition disabled:opacity-40" disabled>Print / save one-page PDF</button>
-        <button id="clear-traces" class="px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-sm font-medium rounded-xl transition disabled:opacity-40" disabled>Clear</button>
       </div>
-      <div id="load-errors" class="hidden mt-3 text-xs text-rose-600"></div>
+      <div id="manifest-list" class="manifest-list"></div>
+      <div id="load-errors" class="error-banner hidden"></div>
+    </section>
+
+    <div id="empty-state" class="panel empty-state">
+      <div style="font-weight:600;color:var(--tr-ink)">No artifacts loaded</div>
+      <div class="muted mt-2">Upload generated <span class="mono">manifest.json</span> or normalized <span class="mono">replay_result.json</span> files, or add a workspace run.</div>
     </div>
 
-    <div id="empty-state" class="bg-white border border-slate-200 rounded-xl p-10 text-center">
-      <div class="text-sm font-medium text-slate-700">No manifests loaded</div>
-      <div class="text-xs text-slate-400 mt-1">Upload generated `manifest.json` files to build a shared distribution graph and comparison report.</div>
-    </div>
-
-    <div id="report" class="hidden report-panel bg-white border border-slate-200 rounded-xl p-5">
-      <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
+    <div id="report" class="hidden report-panel panel">
+      <div class="report-header">
         <div>
-          <div class="text-xs uppercase tracking-wider text-slate-500">Trace comparison report</div>
-          <h2 class="text-2xl font-semibold mt-1">ISL Distribution and Workload Shape</h2>
-          <div id="report-subtitle" class="text-xs text-slate-400 mt-1"></div>
+          <p class="section-label" style="margin-bottom:0">Trace comparison report</p>
+          <h2>ISL distribution and workload shape</h2>
+          <div id="report-subtitle" class="report-subtitle"></div>
         </div>
-        <div id="legend" class="flex flex-wrap justify-end gap-x-4 gap-y-2 text-xs"></div>
+        <div id="legend" class="legend"></div>
       </div>
 
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5" id="summary-cards"></div>
+      <div class="summary-cards" id="summary-cards"></div>
 
-      <div class="border-t border-slate-100 pt-4 mb-5">
-        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+      <div class="report-section">
+        <div class="report-section-head">
           <div>
-            <div class="text-xs uppercase tracking-wider text-slate-500">ISL distribution comparison</div>
-            <div class="text-[10px] text-slate-400 mt-0.5">Grouped vertical bars make cross-trace bucket differences easier to scan</div>
+            <p class="section-label" style="margin-bottom:0">ISL distribution comparison</p>
+            <p class="muted">Grouped vertical bars make cross-trace bucket differences easier to scan</p>
           </div>
-          <button id="download-chart" class="px-3 py-1.5 border border-slate-300 hover:bg-slate-50 text-xs font-medium rounded-lg transition no-print">Download chart PNG</button>
+          <button id="download-chart" type="button" class="btn btn-ghost btn-sm no-print">Download chart PNG</button>
         </div>
-        <div id="vertical-chart" class="overflow-x-auto"></div>
+        <div id="vertical-chart"></div>
       </div>
 
-      <div class="border-t border-slate-100 pt-4 mb-5">
-        <div class="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+      <div class="report-section">
+        <div class="report-section-head">
           <div>
-            <div class="text-xs uppercase tracking-wider text-slate-500">Shared ISL distribution</div>
-            <div class="text-[10px] text-slate-400 mt-0.5">Detailed bucket-by-bucket bars from each manifest's generated trace output</div>
+            <p class="section-label" style="margin-bottom:0">Shared ISL distribution</p>
+            <p class="muted">Detailed bucket-by-bucket bars from each artifact</p>
           </div>
-          <div id="trace-count" class="font-mono text-xs text-slate-500"></div>
+          <div id="trace-count" class="mono muted"></div>
         </div>
-        <div id="shared-chart" class="space-y-3"></div>
+        <div id="shared-chart"></div>
       </div>
 
-      <div class="border-t border-slate-100 pt-4">
-        <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">Comparison breakdown</div>
-        <div class="overflow-auto">
-          <table class="compare-table text-xs">
+      <div class="report-section">
+        <p class="section-label">Comparison breakdown</p>
+        <div style="overflow:auto">
+          <table class="compare-table">
             <thead id="breakdown-head"></thead>
             <tbody id="breakdown-body"></tbody>
           </table>
         </div>
       </div>
-      <div class="report-note mt-4 text-[10px] text-slate-400 leading-relaxed">
-        Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source manifests, but do not necessarily represent exact production workload profiles.
+      <div class="report-note">
+        Generated and augmented traces are simulations for planning and replay experiments. Replay results reflect the specific server, model, context window, AIPerf version, and run options used during profiling.
       </div>
     </div>
-    <div class="no-print mt-8 text-xs text-slate-400 leading-relaxed">
-      Generated and augmented traces are simulations for planning and replay experiments. They preserve selected workload characteristics from the source manifests, but do not necessarily represent exact production workload profiles.
-    </div>
+    <p class="page-footnote no-print">
+      Generated and augmented traces are simulations for planning and replay experiments. Replay results reflect the specific server, model, context window, AIPerf version, and run options used during profiling.
+    </p>
   </div>
 
-  <script>
+<script>
     const ISL_BINS = ['<=1K', '1-2K', '2-4K', '4-8K', '8-16K', '16-32K', '32-64K', '64-128K', '>128K'];
-    const COLORS = ['#0f172a', '#0f766e', '#b45309', '#6d28d9', '#be123c'];
+    const COLORS = ['#0f62fe', '#24a148', '#ff832b', '#8a3ffc', '#da1e28'];
     let traces = [];
 
     function esc(value) {
@@ -178,6 +149,19 @@
       if (n >= 100) return n.toFixed(0) + ' GiB';
       if (n >= 10) return n.toFixed(1) + ' GiB';
       return n.toFixed(3) + ' GiB';
+    }
+
+    function fmtMs(value) {
+      const n = number(value);
+      if (n === null) return 'n/a';
+      if (Math.abs(n) >= 1000) return (n / 1000).toFixed(2) + 's';
+      return n.toFixed(1) + 'ms';
+    }
+
+    function fmtRate(value, suffix) {
+      const n = number(value);
+      if (n === null) return 'n/a';
+      return n.toFixed(n >= 10 ? 1 : 3) + (suffix ? ' ' + suffix : '');
     }
 
     function getOutputStats(manifest) {
@@ -218,6 +202,8 @@
       const kv = manifest.kv_cache_planning || {};
       const scenario = manifest.trace_scenario || {};
       return {
+        kind: 'manifest',
+        isReplay: false,
         fileName: file.name,
         name: pickName(file, manifest, index),
         color: COLORS[index],
@@ -240,25 +226,145 @@
       };
     }
 
+    function pickReplayName(file, result, index) {
+      const run = result.run || {};
+      const model = run.model || (run.endpoint && run.endpoint.url) || '';
+      const id = run.benchmark_id ? `AIPerf ${String(run.benchmark_id).slice(0, 8)}` : `Replay ${index + 1}`;
+      const fallback = file.name.replace(/\.json$/i, '') || id;
+      return model ? `${id} · ${model}` : fallback;
+    }
+
+    function normalizeReplayResult(file, result, index) {
+      const summary = result.summary || {};
+      const latency = result.latency_ms || {};
+      const tokens = result.tokens || {};
+      const run = result.run || {};
+      const ttft = latency.time_to_first_token || {};
+      const requestLatency = latency.request_latency || {};
+      const itl = latency.inter_token_latency || {};
+      const inputSequence = tokens.input_sequence_length || {};
+      const outputSequence = tokens.output_sequence_length || {};
+      return {
+        kind: 'replay',
+        isReplay: true,
+        fileName: file.name,
+        name: pickReplayName(file, result, index),
+        color: COLORS[index],
+        manifest: result,
+        isl: result.observed_isl_distribution || {},
+        requests: summary.request_count,
+        durationMs: number(summary.benchmark_duration_sec) === null ? null : summary.benchmark_duration_sec * 1000,
+        avgRps: summary.request_throughput,
+        medianInput: inputSequence.p50,
+        p95Input: inputSequence.p95,
+        medianOutput: outputSequence.p50,
+        p95Output: outputSequence.p95,
+        hitRatio: null,
+        reusedFraction: null,
+        uniqueBlocks: null,
+        maxConcurrency: null,
+        workingSetGiB: null,
+        reuseCeiling: null,
+        source: run.model || 'AIPerf replay',
+        scenario: 'Observed replay result',
+        ttftP50: ttft.p50,
+        ttftP95: ttft.p95,
+        ttftP99: ttft.p99,
+        requestLatencyP50: requestLatency.p50,
+        requestLatencyP95: requestLatency.p95,
+        requestLatencyP99: requestLatency.p99,
+        itlP95: itl.p95,
+        outputTokenThroughput: summary.output_token_throughput,
+        totalTokenThroughput: summary.total_token_throughput,
+        errorRate: summary.error_rate,
+        errorCount: summary.error_count,
+        timesliceCount: result.timeslices && result.timeslices.count,
+        benchmarkId: run.benchmark_id,
+        aiperfVersion: run.aiperf_version,
+      };
+    }
+
+    function reindexTraces() {
+      traces = traces.map((trace, index) => ({ ...trace, color: COLORS[index % COLORS.length] }));
+    }
+
+    function loadComparePayload(payload) {
+      if (!payload || typeof payload !== 'object') return;
+      const pseudoFile = name => ({ name });
+      const loaded = [];
+      const errors = [];
+      const availableSlots = Math.max(0, 5 - traces.length);
+      if (!availableSlots) {
+        renderErrors(['Remove a manifest before loading AIPerf results. The comparison view supports up to 5 traces.']);
+        return;
+      }
+      try {
+        if (payload.manifest && metric(payload.manifest, 'isl_distribution')) {
+          loaded.push(normalizeTrace(pseudoFile('manifest.json'), payload.manifest, traces.length));
+        }
+        if (payload.replay_result && payload.replay_result.artifact_type === 'aiperf_replay_result') {
+          loaded.push(normalizeReplayResult(pseudoFile('replay_result.json'), payload.replay_result, traces.length + loaded.length));
+        }
+        if (!loaded.length) {
+          throw new Error('payload did not include a manifest or replay_result');
+        }
+        traces = traces.concat(loaded.slice(0, availableSlots));
+        reindexTraces();
+        renderErrors(errors);
+        render();
+      } catch (err) {
+        renderErrors([`Unable to load AIPerf compare payload: ${err.message}`]);
+      }
+    }
+
+    function loadStoredComparePayload() {
+      try {
+        const raw = sessionStorage.getItem('tracerator_compare_payload');
+        if (!raw) return;
+        sessionStorage.removeItem('tracerator_compare_payload');
+        loadComparePayload(JSON.parse(raw));
+      } catch (err) {
+        renderErrors([`Unable to restore compare payload: ${err.message}`]);
+      }
+    }
+
     async function loadFiles(files) {
-      const selected = Array.from(files).slice(0, 5);
+      const incoming = Array.from(files);
       const errors = [];
       const loaded = [];
-      for (const [index, file] of selected.entries()) {
+      const availableSlots = Math.max(0, 5 - traces.length);
+      if (!availableSlots) {
+        renderErrors(['Remove a manifest before adding another. The comparison view supports up to 5 traces.']);
+        document.getElementById('manifest-files').value = '';
+        return;
+      }
+      if (incoming.length > availableSlots) {
+        errors.push(`Only ${availableSlots} more manifest${availableSlots === 1 ? '' : 's'} can be added.`);
+      }
+      for (const [index, file] of incoming.slice(0, availableSlots).entries()) {
         try {
           const text = await file.text();
           const manifest = JSON.parse(text);
-          if (!manifest || typeof manifest !== 'object' || !metric(manifest, 'isl_distribution')) {
-            throw new Error('manifest does not include isl_distribution');
+          if (!manifest || typeof manifest !== 'object') {
+            throw new Error('file is not a JSON object');
           }
-          loaded.push(normalizeTrace(file, manifest, index));
+          if (manifest.artifact_type === 'aiperf_replay_result') {
+            loaded.push(normalizeReplayResult(file, manifest, traces.length + index));
+            continue;
+          }
+          if (!metric(manifest, 'isl_distribution')) {
+            throw new Error('file is not a Tracerator manifest or replay_result.json');
+          }
+          loaded.push(normalizeTrace(file, manifest, traces.length + index));
         } catch (err) {
           errors.push(`${file.name}: ${err.message}`);
         }
       }
-      traces = loaded;
+      traces = traces.concat(loaded);
+      reindexTraces();
       renderErrors(errors);
       render();
+      document.getElementById('manifest-files').value = '';
     }
 
     function renderErrors(errors) {
@@ -279,9 +385,12 @@
       ['export-report', 'print-report', 'clear-traces'].forEach(id => {
         document.getElementById(id).disabled = !hasTraces;
       });
+      document.getElementById('manifest-files').disabled = traces.length >= 5;
+      renderManifestManager();
       if (!hasTraces) return;
-      document.getElementById('report-subtitle').textContent = `${traces.length} manifest${traces.length === 1 ? '' : 's'} loaded · ${new Date().toLocaleDateString()}`;
-      document.getElementById('trace-count').textContent = traces.length + ' trace' + (traces.length === 1 ? '' : 's');
+      const replayCount = traces.filter(trace => trace.isReplay).length;
+      document.getElementById('report-subtitle').textContent = `${traces.length} artifact${traces.length === 1 ? '' : 's'} loaded · ${replayCount} replay result${replayCount === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`;
+      document.getElementById('trace-count').textContent = traces.length + ' artifact' + (traces.length === 1 ? '' : 's');
       renderLegend();
       renderCards();
       renderVerticalChart();
@@ -289,41 +398,123 @@
       renderBreakdown();
     }
 
+    function renderManifestManager() {
+      const count = document.getElementById('manifest-count');
+      const list = document.getElementById('manifest-list');
+      const remaining = Math.max(0, 5 - traces.length);
+      count.textContent = traces.length
+        ? `${traces.length} of 5 artifacts loaded · ${remaining} slot${remaining === 1 ? '' : 's'} remaining`
+        : 'Add manifest.json or replay_result.json files one at a time, up to 5 total. Files are parsed locally in this browser.';
+      if (!traces.length) {
+        list.innerHTML = '';
+        return;
+      }
+      list.innerHTML = traces.map((trace, index) => `
+        <div class="manifest-item" data-trace-index="${index}">
+          <div class="manifest-item__meta">
+            <div class="manifest-item__name">
+              <span class="manifest-item__swatch" style="background:${trace.color}"></span>${esc(trace.name)}
+            </div>
+            <div class="manifest-item__sub">${esc(trace.fileName)} · ${esc(trace.isReplay ? 'replay result' : 'trace manifest')} · ${fmtInt(trace.requests)} requests · ${esc(trace.scenario)}</div>
+          </div>
+          <div class="manifest-item__actions" aria-label="Trace actions">
+            <button type="button" data-action="up" data-index="${index}" ${index === 0 ? 'disabled' : ''}>Up</button>
+            <button type="button" data-action="down" data-index="${index}" ${index === traces.length - 1 ? 'disabled' : ''}>Down</button>
+            <button type="button" data-action="remove" data-index="${index}">Remove</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function moveTrace(index, delta) {
+      const next = index + delta;
+      if (next < 0 || next >= traces.length) return;
+      const copy = traces.slice();
+      const [trace] = copy.splice(index, 1);
+      copy.splice(next, 0, trace);
+      traces = copy;
+      reindexTraces();
+      renderErrors([]);
+      render();
+    }
+
+    function removeTrace(index) {
+      traces.splice(index, 1);
+      reindexTraces();
+      renderErrors([]);
+      render();
+    }
+
     function renderLegend() {
       document.getElementById('legend').innerHTML = traces.map(trace => `
-        <div class="flex items-center gap-2">
-          <span class="inline-block w-3 h-3 rounded-sm" style="background:${trace.color}"></span>
-          <span class="font-medium text-slate-700">${esc(trace.name)}</span>
+        <div class="legend-item">
+          <span class="legend-swatch" style="background:${trace.color}"></span>
+          <span>${esc(trace.name)}</span>
         </div>
       `).join('');
     }
 
     function renderCards() {
       const totalReqs = traces.reduce((acc, trace) => acc + (number(trace.requests) || 0), 0);
-      const bestReuse = Math.max(...traces.map(trace => number(trace.reusedFraction ?? trace.hitRatio) || 0));
+      const reuseValues = traces.map(trace => number(trace.reusedFraction ?? trace.hitRatio)).filter(value => value !== null);
+      const bestReuse = reuseValues.length ? Math.max(...reuseValues) : null;
       const maxP95 = Math.max(...traces.map(trace => number(trace.p95Input) || 0));
       const maxWorkingSet = Math.max(...traces.map(trace => number(trace.workingSetGiB) || 0));
+      const replayCount = traces.filter(trace => trace.isReplay).length;
+      const maxErrorRate = Math.max(0, ...traces.map(trace => number(trace.errorRate) || 0));
       const cards = [
-        ['Traces', traces.length.toLocaleString(), 'Manifests in report'],
+        ['Artifacts', traces.length.toLocaleString(), `${replayCount} observed replay result${replayCount === 1 ? '' : 's'}`],
         ['Total requests', fmtInt(totalReqs), 'Combined request count'],
-        ['Best reuse', fmtPct(bestReuse), 'Highest reused/cache ratio'],
+        ['Best reuse', bestReuse === null ? 'n/a' : fmtPct(bestReuse), bestReuse === null ? 'No planned reuse metric loaded' : 'Highest planned reused/cache ratio'],
         ['Largest working set', fmtGiB(maxWorkingSet), maxWorkingSet ? 'KV planning estimate' : 'KV planning unavailable'],
+        ['Max error rate', fmtPct(maxErrorRate), replayCount ? 'Observed replay failures' : 'No replay results loaded'],
         ['Largest p95 ISL', fmtInt(maxP95), 'Longest p95 input length'],
       ];
       document.getElementById('summary-cards').innerHTML = cards.map(([label, value, sub]) => `
-        <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
-          <div class="text-[10px] uppercase tracking-wider text-slate-500">${esc(label)}</div>
-          <div class="mt-1 text-2xl font-semibold tabular-nums">${esc(value)}</div>
-          <div class="text-[10px] text-slate-400 mt-1">${esc(sub)}</div>
+        <div class="kpi">
+          <div class="label">${esc(label)}</div>
+          <div class="value">${esc(value)}</div>
+          <div class="sub">${esc(sub)}</div>
         </div>
       `).join('');
+    }
+
+    function comparisonPngTitle() {
+      if (!traces.length) return 'Trace comparison';
+      const names = traces.map(trace => trace.name);
+      if (names.length <= 3) return names.join(' vs ');
+      return `${names.slice(0, 3).join(' vs ')} + ${names.length - 3} more`;
+    }
+
+    function timestampForFilename() {
+      const now = new Date();
+      const pad = value => String(value).padStart(2, '0');
+      return [
+        now.getFullYear(),
+        pad(now.getMonth() + 1),
+        pad(now.getDate()),
+        pad(now.getHours()),
+        pad(now.getMinutes())
+      ].join('');
+    }
+
+    function slugifyFilename(value) {
+      return String(value || 'trace-comparison')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'trace-comparison';
+    }
+
+    function downloadFilename(traceTitle, extension, descriptor) {
+      const parts = [traceTitle, descriptor].filter(Boolean).join(' ');
+      return `${slugifyFilename(parts)}-${timestampForFilename()}.${extension.replace(/^\./, '')}`;
     }
 
     function renderVerticalChart() {
       const width = 980;
       const legendItems = [];
       let legendX = 58;
-      let legendY = 12;
+      let legendY = 68;
       let legendRows = 1;
       traces.forEach(trace => {
         const itemWidth = Math.max(150, Math.min(330, trace.name.length * 7 + 36));
@@ -335,8 +526,8 @@
         legendItems.push({ trace, x: legendX, y: legendY });
         legendX += itemWidth;
       });
-      const height = 430 + Math.max(0, legendRows - 1) * 18;
-      const margin = { top: 26 + legendRows * 18, right: 24, bottom: 74, left: 58 };
+      const height = 486 + Math.max(0, legendRows - 1) * 18;
+      const margin = { top: 82 + legendRows * 18, right: 24, bottom: 74, left: 58 };
       const plotW = width - margin.left - margin.right;
       const plotH = height - margin.top - margin.bottom;
       const maxShare = Math.max(0.05, ...traces.flatMap(trace => ISL_BINS.map(name => (trace.isl[name] && trace.isl[name].share) || 0)));
@@ -367,7 +558,7 @@
           const x = startX + traceIndex * (barW + barGap);
           const yy = margin.top + plotH - h;
           return `
-            <rect x="${x.toFixed(2)}" y="${yy.toFixed(2)}" width="${barW.toFixed(2)}" height="${h.toFixed(2)}" rx="2" fill="${trace.color}">
+            <rect x="${x.toFixed(2)}" y="${yy.toFixed(2)}" width="${barW.toFixed(2)}" height="${h.toFixed(2)}" fill="${trace.color}">
               <title>${esc(trace.name)} ${esc(name)}: ${fmtPct(share)}</title>
             </rect>`;
         }).join('');
@@ -378,16 +569,18 @@
 
       const legend = legendItems.map(({ trace, x, y }) => {
         return `
-          <rect x="${x}" y="${y}" width="10" height="10" rx="2" fill="${trace.color}"/>
+          <rect x="${x}" y="${y}" width="10" height="10" fill="${trace.color}"/>
           <text x="${x + 16}" y="${y + 9}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11" font-weight="600" fill="#334155">${esc(trace.name)}</text>`;
       }).join('');
 
       document.getElementById('vertical-chart').innerHTML = `
         <svg id="vertical-chart-svg" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grouped vertical ISL distribution chart">
           <rect width="100%" height="100%" fill="#ffffff"/>
+          <text x="${margin.left}" y="28" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="22" font-weight="700" fill="#161616">ISL distribution comparison</text>
+          <text x="${margin.left}" y="50" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="500" fill="#525252">${esc(comparisonPngTitle())}</text>
           ${legend}
-          <text x="${margin.left}" y="${height - 8}" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11" fill="#64748b">Input sequence length bucket</text>
-          <text x="18" y="${margin.top + 16}" transform="rotate(-90 18 ${margin.top + 16})" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-size="11" fill="#64748b">Share of trace</text>
+          <text x="${margin.left}" y="${height - 8}" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="11" fill="#525252">Input sequence length bucket</text>
+          <text x="18" y="${margin.top + 16}" transform="rotate(-90 18 ${margin.top + 16})" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="11" fill="#525252">Share of trace</text>
           ${grid}
           <line x1="${margin.left}" y1="${margin.top + plotH}" x2="${width - margin.right}" y2="${margin.top + plotH}" stroke="#94a3b8" stroke-width="1"/>
           ${bars}
@@ -397,20 +590,20 @@
     function renderSharedChart() {
       const maxShare = Math.max(0.0001, ...traces.flatMap(trace => ISL_BINS.map(name => (trace.isl[name] && trace.isl[name].share) || 0)));
       document.getElementById('shared-chart').innerHTML = ISL_BINS.map(name => `
-        <div class="bucket-row text-xs">
-          <div class="font-mono font-medium text-slate-600 pt-1">${esc(name)}</div>
-          <div class="space-y-1">
+        <div class="bucket-row">
+          <div class="bin">${esc(name)}</div>
+          <div>
             ${traces.map(trace => {
               const bucket = trace.isl[name] || { count: 0, share: 0 };
               const share = number(bucket.share) || 0;
               const width = Math.max(0, Math.min(100, (share / maxShare) * 100));
               return `
                 <div class="trace-bar-row">
-                  <div class="truncate text-slate-600" title="${esc(trace.name)}">${esc(trace.name)}</div>
+                  <div class="name" title="${esc(trace.name)}">${esc(trace.name)}</div>
                   <div class="track" title="${esc(trace.name)} ${esc(name)}: ${fmtInt(bucket.count)} requests, ${fmtPct(share)}">
                     <div class="fill" style="width:${width}%; background:${trace.color}"></div>
                   </div>
-                  <div class="font-mono text-right text-slate-600">${fmtInt(bucket.count)} <span class="text-slate-400">(${fmtPct(share)})</span></div>
+                  <div class="stats">${fmtInt(bucket.count)} <span class="muted">(${fmtPct(share)})</span></div>
                 </div>`;
             }).join('')}
           </div>
@@ -426,21 +619,25 @@
           <th>Notes</th>
         </tr>`;
       const rows = [
+        ['Artifact type', trace => trace.isReplay ? 'AIPerf replay result' : 'Tracerator manifest', 'Distinguishes planned workloads from observed run evidence.'],
         ['# Requests', trace => fmtInt(trace.requests), 'Higher request counts create stronger queueing and throughput signal.'],
         ['Duration / arrival shape', trace => `${fmtDuration(trace.durationMs)} · ${fmtInt(trace.maxConcurrency)} peak`, 'Fixed timestamps remain replayable; peak concurrency frames burst pressure.'],
         ['Input length', trace => `median ${fmtInt(trace.medianInput)} · p95 ${fmtInt(trace.p95Input)}`, 'Longer ISL increases prefill cost and TTFT leverage.'],
         ['Output length', trace => `median ${fmtInt(trace.medianOutput)}`, 'Modest OSL makes prefill effects translate more directly to end-to-end latency.'],
         ['Prefix reuse', trace => `${fmtPct(trace.reusedFraction ?? trace.hitRatio)} reuse · ${fmtPct(trace.hitRatio)} cache`, 'Higher reused-prefix fraction broadens TTFT and cache-tier wins.'],
         ['KV working set', trace => `${fmtGiB(trace.workingSetGiB)} · ceiling ${fmtPct(trace.reuseCeiling)}`, 'Working sets larger than HBM make eviction/reload behavior visible.'],
+        ['Observed TTFT', trace => trace.isReplay ? `p50 ${fmtMs(trace.ttftP50)} · p95 ${fmtMs(trace.ttftP95)} · p99 ${fmtMs(trace.ttftP99)}` : 'planned only', 'Replay evidence for prefill and queueing behavior.'],
+        ['Observed latency', trace => trace.isReplay ? `p50 ${fmtMs(trace.requestLatencyP50)} · p95 ${fmtMs(trace.requestLatencyP95)} · p99 ${fmtMs(trace.requestLatencyP99)}` : 'planned only', 'End-to-end request latency from AIPerf.'],
+        ['Throughput / errors', trace => trace.isReplay ? `${fmtRate(trace.avgRps, 'req/s')} · ${fmtRate(trace.outputTokenThroughput, 'tok/s')} · ${fmtPct(trace.errorRate)} errors` : 'run replay to populate', 'Observed serving performance and failure rate.'],
         ['Unique blocks', trace => fmtInt(trace.uniqueBlocks), 'More distinct blocks increase cache pressure and reduce trivial all-in-HBM cases.'],
         ['Context behavior', trace => contextNote(trace), 'Summarized from ISL bucket mass.'],
         ['Source / scenario', trace => `${trace.source || 'generated'} · ${trace.scenario}`, 'Manifest provenance for report traceability.'],
       ];
       document.getElementById('breakdown-body').innerHTML = rows.map(([aspect, getter, note]) => `
         <tr>
-          <td class="font-medium text-slate-700">${esc(aspect)}</td>
+          <td class="aspect">${esc(aspect)}</td>
           ${traces.map(trace => `<td>${esc(getter(trace))}</td>`).join('')}
-          <td class="text-slate-500">${esc(note)}</td>
+          <td class="note">${esc(note)}</td>
         </tr>
       `).join('');
     }
@@ -449,17 +646,19 @@
       if (!traces.length) return;
       const report = document.getElementById('report').cloneNode(true);
       report.classList.remove('hidden');
+      const sheets = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+        .map(link => `<link rel="stylesheet" href="${link.href}">`)
+        .join('\n  ');
       const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tracerator Trace Compare Report</title>
-  <script src="https://cdn.tailwindcss.com"><\/script>
-  <style>${document.querySelector('style').textContent}</style>
+  <title>Tracerator Compare Report</title>
+  ${sheets}
 </head>
-<body class="bg-white text-slate-900">
-  <div class="max-w-6xl mx-auto p-8">
+<body class="workspace-body">
+  <div class="workspace-shell">
     ${report.outerHTML}
   </div>
 </body>
@@ -468,7 +667,7 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'trace-compare-report.html';
+      a.download = downloadFilename(comparisonPngTitle(), 'html', 'report');
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -478,26 +677,33 @@
     function downloadChartImage() {
       const svg = document.getElementById('vertical-chart-svg');
       if (!svg) return;
+      const viewBox = svg.viewBox.baseVal;
+      const width = viewBox.width || svg.width.baseVal.value;
+      const height = viewBox.height || svg.height.baseVal.value;
+      const clone = svg.cloneNode(true);
+      clone.setAttribute('width', width * 2);
+      clone.setAttribute('height', height * 2);
+      clone.setAttribute('viewBox', `0 0 ${width} ${height}`);
       const serializer = new XMLSerializer();
-      const svgText = serializer.serializeToString(svg);
+      const svgText = serializer.serializeToString(clone);
       const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
       const url = URL.createObjectURL(svgBlob);
       const image = new Image();
       image.onload = () => {
         const canvas = document.createElement('canvas');
-        canvas.width = svg.viewBox.baseVal.width || svg.width.baseVal.value;
-        canvas.height = svg.viewBox.baseVal.height || svg.height.baseVal.value;
+        canvas.width = image.naturalWidth || width * 2;
+        canvas.height = image.naturalHeight || height * 2;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(image, 0, 0);
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
         URL.revokeObjectURL(url);
         canvas.toBlob(blob => {
           if (!blob) return;
           const pngUrl = URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = pngUrl;
-          a.download = 'trace-compare-isl-distribution.png';
+          a.download = downloadFilename(comparisonPngTitle(), 'png', 'isl-distribution');
           document.body.appendChild(a);
           a.click();
           a.remove();
@@ -508,6 +714,15 @@
     }
 
     document.getElementById('manifest-files').addEventListener('change', event => loadFiles(event.target.files));
+    document.getElementById('manifest-list').addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const index = Number(button.dataset.index);
+      if (!Number.isInteger(index)) return;
+      if (button.dataset.action === 'up') moveTrace(index, -1);
+      if (button.dataset.action === 'down') moveTrace(index, 1);
+      if (button.dataset.action === 'remove') removeTrace(index);
+    });
     document.getElementById('export-report').addEventListener('click', exportReport);
     document.getElementById('download-chart').addEventListener('click', downloadChartImage);
     document.getElementById('print-report').addEventListener('click', () => window.print());
@@ -517,6 +732,57 @@
       renderErrors([]);
       render();
     });
+
+    async function refreshWorkspaceRuns() {
+      const select = document.getElementById('workspace-run');
+      try {
+        const resp = await fetch('/runs?limit=50');
+        const data = await resp.json();
+        const runs = (data.runs || []).filter(r => r.status && r.status !== 'draft');
+        select.innerHTML = '<option value="">Select a run…</option>' + runs.map(r =>
+          `<option value="${esc(r.id)}">${esc(r.name || r.id)} · ${esc(r.status)}</option>`
+        ).join('');
+      } catch (_) {
+        select.innerHTML = '<option value="">Workspace unavailable</option>';
+      }
+    }
+
+    document.getElementById('load-workspace-run').addEventListener('click', async () => {
+      const id = document.getElementById('workspace-run').value;
+      if (!id) return;
+      try {
+        const resp = await fetch('/runs/' + id);
+        const run = await resp.json();
+        if (!resp.ok) throw new Error(run.error || 'run not found');
+        const availableSlots = Math.max(0, 5 - traces.length);
+        if (!availableSlots) {
+          renderErrors(['Comparison view supports up to 5 traces.']);
+          return;
+        }
+        const loaded = [];
+        if (run.manifest) {
+          loaded.push(normalizeTrace({ name: (run.name || id) + '-manifest.json' }, run.manifest, traces.length));
+        }
+        if (run.replay_result && run.replay_result.artifact_type === 'aiperf_replay_result' && loaded.length < availableSlots) {
+          loaded.push(normalizeReplayResult(
+            { name: (run.name || id) + '-replay.json' },
+            run.replay_result,
+            traces.length + loaded.length
+          ));
+        }
+        if (!loaded.length) throw new Error('run has no manifest or replay_result yet');
+        traces = traces.concat(loaded.slice(0, availableSlots));
+        reindexTraces();
+        renderErrors([]);
+        render();
+      } catch (err) {
+        renderErrors([err.message || String(err)]);
+      }
+    });
+
+    refreshWorkspaceRuns();
+    loadStoredComparePayload();
+    render();
   </script>
 </body>
 </html>

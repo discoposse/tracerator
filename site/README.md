@@ -1,22 +1,19 @@
 # Tracerator UI
 
-Static UI served by the backend.
+Static files served by the Flask backend in `app.py`.
 
-![Tracerator UI](../assets/01-tracerator-overview.jpg)
+Pages:
 
-The app has two linked pages:
-
-- **Trace Generator** at `/` for producing trace bundles and manifest previews.
-- **Trace Comparison** at `/compare` for comparing up to five `manifest.json` files in a shared report.
-
-Run with Docker Compose from the project root for the full experience:
+- Workspace at `/`
+- Run detail at `/runs/<id>/view`
+- Trace Profiles at `/profiles`
+- Trace Comparison at `/compare`
+- Study at `/study`
 
 ```bash
 docker compose up
 ```
 
-Then browse to http://localhost:8000.
+Open http://localhost:8008.
 
-Generated and augmented traces are simulations for planning and replay experiments; they do not necessarily represent exact production workload profiles.
-
-See the main [README.md](../README.md) and [TRACE_UI.md](../docs/TRACE_UI.md) for full instructions, pre-flight launcher, and details.
+See [docs/TRACE_UI.md](../docs/TRACE_UI.md) and the root [README.md](../README.md).

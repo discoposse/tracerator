@@ -123,7 +123,7 @@ print_command() {
 # Find aiperf binary (preference order matches aiperf-toolkit conventions)
 find_aiperf() {
     if [[ -n "$AIPERF_BIN" && -x "$AIPERF_BIN" ]]; then
-        echo "$AI PERF_BIN"
+        echo "$AIPERF_BIN"
         return 0
     fi
     if [[ -x "$VENV_DIR/bin/aiperf" ]]; then

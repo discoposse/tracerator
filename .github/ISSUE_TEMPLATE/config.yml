@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: AIPerf toolkit
+    url: https://github.com/discoposse/aiperf-toolkit
+    about: Local AIPerf + vLLM/Ollama setup used with Tracerator
