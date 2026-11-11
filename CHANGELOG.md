@@ -2,16 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased] - 2026-11
+
+### Added
+- Trace pages at `/traces` and `/traces/<id>`, with whole-trace profiles and prefix-chain sessions.
+- `scripts/build_trace_profiles.py` writes `site/data/traces/<id>/profile.json` and `sessions.jsonl.gz`.
+
+### Changed
+- Trace cards use IBM Plex Sans, one blue accent, and two charts computed from each trace.
+- `/profiles` redirects to `/traces`.
+- The golden source is labeled Turn-1 warm / Turn-2 resume. Registry traces carry license, source, and citation fields.
+
+### Removed
+- Profile page figures and their PNGs.
+- The bundled Mooncake FAST '25 PDF, in favor of the USENIX and arXiv pages.
+- The Codex SWE-bench Pro source, which had no public URL or license.
+- The old golden-source alias route.
+
 ## [Unreleased] - 2026-09
 
 ### Changed
-- Public community edition: vendor-neutral LightInferra-style golden traces, generic self-host docs, and Diátaxis documentation under `docs/`.
-- Golden source id is `lightinferra-golden`. The generate API still accepts `lightinferra-ddn-golden`.
+- Public community edition: vendor-neutral Turn-1 warm / Turn-2 resume traces, generic self-host docs, and Diátaxis documentation under `docs/`.
+- Golden source id is `lightinferra-golden`.
 - Docker Compose extra-source mounts default to `./external/...` instead of a personal laptop path.
 - Production Compose publishes port 8008 as container `tracerator` and no longer requires a private Docker network.
 
 ### Removed
-- Internal deploy hostnames, private GitHub URLs, and product-specific Infinia pass/fail copy from the public tree.
+- Internal deploy hostnames, private GitHub URLs, and vendor pass/fail copy from the public tree.
 
 ## [Unreleased] - 2026-06
 

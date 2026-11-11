@@ -11,6 +11,8 @@ class AiperfResultImportTests(unittest.TestCase):
     def test_normalizes_existing_aiperf_artifact_directory(self):
         repo = Path(__file__).resolve().parents[1]
         artifact_dir = repo / "artifacts" / "Qwen_Qwen3-0.6B-openai-chat-fixed_schedule"
+        if not artifact_dir.is_dir():
+            self.skipTest("local AIPerf artifact is not in this checkout")
 
         result = normalize_aiperf_run(artifact_dir)
 
@@ -28,6 +30,8 @@ class AiperfResultImportTests(unittest.TestCase):
     def test_import_route_returns_replay_result(self):
         repo = Path(__file__).resolve().parents[1]
         artifact_dir = repo / "artifacts" / "Qwen_Qwen3-0.6B-openai-chat-fixed_schedule"
+        if not artifact_dir.is_dir():
+            self.skipTest("local AIPerf artifact is not in this checkout")
         client = app.test_client()
 
         resp = client.post("/aiperf/import", json={"artifact_dir": str(artifact_dir)})
@@ -48,6 +52,8 @@ class AiperfResultImportTests(unittest.TestCase):
     def test_cli_output_shape_can_be_saved(self):
         repo = Path(__file__).resolve().parents[1]
         artifact_dir = repo / "artifacts" / "Qwen_Qwen3-0.6B-openai-chat-fixed_schedule"
+        if not artifact_dir.is_dir():
+            self.skipTest("local AIPerf artifact is not in this checkout")
         result = normalize_aiperf_run(artifact_dir)
 
         with tempfile.TemporaryDirectory() as tmpdir:

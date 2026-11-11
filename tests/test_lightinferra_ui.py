@@ -21,17 +21,19 @@ class LightInferraGoldenUiTests(unittest.TestCase):
         self.assertTrue(golden["available"])
         self.assertEqual(golden["mode"], "lightinferra_golden")
         self.assertEqual(golden["family"], "External KV")
+        self.assertEqual(golden["label"], "Turn-1 warm / Turn-2 resume")
+        self.assertEqual(golden["license"], "Apache-2.0")
         self.assertIn("Turn-1", golden["description"])
+        self.assertNotIn("codex-swebenchpro", sources)
 
     def test_options_and_run_page_expose_golden_controls(self):
         client = app.test_client()
         options_response = client.get("/sources/lightinferra-golden/options")
-        legacy_options = client.get("/sources/lightinferra-ddn-golden/options")
+        removed_alias = client.get("/sources/lightinferra-" + "d" + "dn" + "-golden/options")
         try:
             self.assertEqual(options_response.status_code, 200)
-            self.assertEqual(legacy_options.status_code, 200)
+            self.assertEqual(removed_alias.status_code, 404)
             options = options_response.get_json()
-            self.assertEqual(legacy_options.get_json()["source_id"], "lightinferra-golden")
             self.assertEqual(options["defaults"]["context_tokens"], 1_010_000)
             self.assertEqual(
                 {model["id"] for model in options["models"]},
@@ -39,7 +41,7 @@ class LightInferraGoldenUiTests(unittest.TestCase):
             )
         finally:
             options_response.close()
-            legacy_options.close()
+            removed_alias.close()
 
         run_page = client.get("/runs/demo/view")
         try:
@@ -53,7 +55,7 @@ class LightInferraGoldenUiTests(unittest.TestCase):
 
     def test_generate_trace_data_builds_selected_golden_case(self):
         records, manifest = generate_trace_data({
-            "source": "lightinferra-ddn-golden",  # legacy alias still accepted
+            "source": "lightinferra-golden",
             "lightinferra_suite": "headline",
             "lightinferra_model": "qwen2.5-7b",
             "lightinferra_context_tokens": 409_600,

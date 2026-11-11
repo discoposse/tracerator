@@ -44,7 +44,7 @@ class TraceCardContractTests(unittest.TestCase):
                 "integrity": {"aiperf_ready": True},
             },
         )
-        self.assertEqual(card["schema_version"], "tracerator.trace_card.v1")
+        self.assertEqual(card["schema_version"], "tracerator.trace_card.v2")
         second = build_run_trace_card(
             "run-123",
             "Agent replay",
@@ -60,8 +60,8 @@ class TraceCardContractTests(unittest.TestCase):
                 },
             },
         )
-        self.assertEqual(card["fingerprint"]["serial"], second["fingerprint"]["serial"])
-        self.assertEqual(len(card["fingerprint"]["bars"]), 9)
+        self.assertEqual(card["charts"]["rpm"], second["charts"]["rpm"])
+        self.assertEqual(len(card["charts"]["input_shares"]), 9)
         self.assertEqual(card["stats"]["request_count"], 3)
         self.assertEqual(card["stats"]["max_concurrency"], 2)
         self.assertGreater(card["stats"]["cache_hit_ratio"], 0)
@@ -89,13 +89,15 @@ class TraceCardContractTests(unittest.TestCase):
         self.assertEqual(card["provenance"]["license"], "Apache-2.0")
         self.assertEqual(card["links"]["original"], "https://example.test/dataset")
 
-    def test_browser_renderer_exports_high_resolution_png(self):
+    def test_browser_renderer_draws_real_charts_without_a_fingerprint(self):
         source = Path(__file__).resolve().parents[1] / "site" / "js" / "trace_card.js"
         javascript = source.read_text(encoding="utf-8")
-        self.assertIn("canvas.width = 1200", javascript)
-        self.assertIn("canvas.height = 1680", javascript)
-        self.assertIn('canvas.toBlob(function (blob)', javascript)
-        self.assertIn('}, "image/png");', javascript)
+        self.assertIn("TraceratorCharts.area", javascript)
+        self.assertIn("TraceratorCharts.bars", javascript)
+        self.assertIn("Open trace", javascript)
+        self.assertNotIn("fingerprint", javascript)
+        self.assertNotIn("Download PNG", javascript)
+        self.assertNotIn("Plex Mono", javascript)
 
 
 class TraceCardApiTests(unittest.TestCase):

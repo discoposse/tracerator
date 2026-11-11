@@ -34,10 +34,6 @@ CC_WEKA_DIR = _first_existing(
     Path(os.environ.get("TRACERATOR_CC_WEKA_DIR", "/external/cc-traces-weka-with-subagents-051826")),
     DOCS / "cc-traces-weka-with-subagents-051826",
 )
-CODEX_SWEBENCHPRO_DIR = _first_existing(
-    Path(os.environ.get("TRACERATOR_CODEX_SWEBENCHPRO_DIR", "/external/codex_swebenchpro_traces")),
-    DOCS / "codex_swebenchpro_traces",
-)
 AIPERF_TOOLKIT = _first_existing(
     Path(os.environ.get("TRACERATOR_AIPERF_TOOLKIT_DIR", "/external/aiperf-toolkit")),
     DOCS / "aiperf-toolkit",
@@ -48,20 +44,25 @@ SAGESERVE_DIR = _first_existing(
 )
 RAGPULSE_TRACE = RAGPULSE_DIR / "0_trace.jsonl"
 CC_WEKA_TRACE = CC_WEKA_DIR / "traces.jsonl"
-CODEX_SWEBENCHPRO_TRACE = CODEX_SWEBENCHPRO_DIR / "codex_swebenchpro.json"
 SAGESERVE_ENTERPRISE_TRACE = SAGESERVE_DIR / "traces" / "week-dp.csv"
 SAGESERVE_CODE_TRACE = SAGESERVE_DIR / "data" / "code_distributions.csv"
 SAGESERVE_CONV_TRACE = SAGESERVE_DIR / "data" / "conv_distributions.csv"
 LIGHTINFERRA_GOLDEN_GENERATOR = ROOT / "lightinferra_golden.py"
 LIGHTINFERRA_GOLDEN_SOURCE_ID = "lightinferra-golden"
-LIGHTINFERRA_GOLDEN_SOURCE_ALIASES = frozenset({"lightinferra-ddn-golden"})
+MOONCAKE_PAPER = "https://www.usenix.org/conference/fast25/presentation/qin"
+MOONCAKE_ARXIV = "https://arxiv.org/abs/2407.00079"
+MOONCAKE_CITATION = (
+    "Qin et al., Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving, "
+    "USENIX FAST 2025"
+)
+TURN_RESUME_CITATION = (
+    "https://www.lightbitslabs.com/blog/"
+    "introducing-lightinferra-280x-improved-ai-token-economy-by-lightbits-labs/"
+)
 
 
 def canonicalize_source_id(source_id: str) -> str:
-    value = str(source_id or "").strip()
-    if value in LIGHTINFERRA_GOLDEN_SOURCE_ALIASES:
-        return LIGHTINFERRA_GOLDEN_SOURCE_ID
-    return value
+    return str(source_id or "").strip()
 
 
 def is_lightinferra_golden_source(source_id: str) -> bool:
@@ -83,6 +84,9 @@ class TraceSource:
     source_url: Optional[str] = None
     source_label: Optional[str] = None
     license: Optional[str] = None
+    category: Optional[str] = None
+    citation: Optional[str] = None
+    citation_url: Optional[str] = None
 
 
 def blocks_for_length(length: int, block_size: int = BLOCK_SIZE) -> int:
@@ -105,51 +109,39 @@ def _is_lfs_pointer(path: Path) -> bool:
 
 
 def discover_trace_sources() -> List[TraceSource]:
+    mooncake_url = "https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces"
     sources = [
-        TraceSource(
-            id=LIGHTINFERRA_GOLDEN_SOURCE_ID,
-            label="LightInferra-style golden",
-            family="External KV",
-            path=LIGHTINFERRA_GOLDEN_GENERATOR,
-            mode="lightinferra_golden",
-            description=(
-                "Deterministic Turn-1 warm and Turn-2 resume workload for comparing "
-                "cache regeneration with an external KV store."
-            ),
-            cache_fidelity="exact deterministic 512-token shared-prefix blocks",
-            available=LIGHTINFERRA_GOLDEN_GENERATOR.exists(),
-            status="ready" if LIGHTINFERRA_GOLDEN_GENERATOR.exists() else "generator missing",
-            source_url=(
-                "https://www.lightbitslabs.com/blog/"
-                "introducing-lightinferra-280x-improved-ai-token-economy-by-lightbits-labs/"
-            ),
-            source_label="LightInferra public benchmark methodology",
-        ),
         TraceSource(
             id="conversation",
             label="Mooncake Conversation",
             family="Mooncake",
             path=MOONCAKE_DIR / "conversation_trace.jsonl",
             mode="mooncake",
-            description="Real multi-turn Kimi chat traffic with long contexts and prefix reuse.",
+            description="Multi-turn chat with long prompts, follow-up turns minutes apart, and steady arrivals.",
             cache_fidelity="block hash_ids",
             available=(MOONCAKE_DIR / "conversation_trace.jsonl").exists(),
-            source_url="https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+            source_url=mooncake_url,
             source_label="Mooncake FAST '25 traces",
             license="Apache-2.0",
+            category="chat",
+            citation=MOONCAKE_CITATION,
+            citation_url=MOONCAKE_PAPER,
         ),
         TraceSource(
             id="toolagent",
-            label="Mooncake Tool & Agent",
+            label="Mooncake Tool and Agent",
             family="Mooncake",
             path=MOONCAKE_DIR / "toolagent_trace.jsonl",
             mode="mooncake",
-            description="Agent/tool traffic with high shared-prefix reuse and bursty arrivals.",
+            description="Agent loops that come back within seconds with short outputs and heavy prefix reuse.",
             cache_fidelity="block hash_ids",
             available=(MOONCAKE_DIR / "toolagent_trace.jsonl").exists(),
-            source_url="https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+            source_url=mooncake_url,
             source_label="Mooncake FAST '25 traces",
             license="Apache-2.0",
+            category="agents",
+            citation=MOONCAKE_CITATION,
+            citation_url=MOONCAKE_PAPER,
         ),
         TraceSource(
             id="synthetic",
@@ -157,12 +149,35 @@ def discover_trace_sources() -> List[TraceSource]:
             family="Mooncake",
             path=MOONCAKE_DIR / "synthetic_trace.jsonl",
             mode="mooncake",
-            description="Long-context public-data baseline with lower sharing.",
+            description="Long single prompts built from public data, with a few deep multi-turn chains.",
             cache_fidelity="block hash_ids",
             available=(MOONCAKE_DIR / "synthetic_trace.jsonl").exists(),
-            source_url="https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+            source_url=mooncake_url,
             source_label="Mooncake FAST '25 traces",
             license="Apache-2.0",
+            category="long-context",
+            citation=MOONCAKE_CITATION,
+            citation_url=MOONCAKE_PAPER,
+        ),
+        TraceSource(
+            id=LIGHTINFERRA_GOLDEN_SOURCE_ID,
+            label="Turn-1 warm / Turn-2 resume",
+            family="External KV",
+            path=LIGHTINFERRA_GOLDEN_GENERATOR,
+            mode="lightinferra_golden",
+            description=(
+                "Deterministic Turn-1 warm and Turn-2 resume workload for comparing "
+                "cache regeneration with a remote KV store."
+            ),
+            cache_fidelity="exact deterministic 512-token shared-prefix blocks",
+            available=LIGHTINFERRA_GOLDEN_GENERATOR.exists(),
+            status="ready" if LIGHTINFERRA_GOLDEN_GENERATOR.exists() else "generator missing",
+            source_url=TURN_RESUME_CITATION,
+            source_label="Tracerator",
+            license="Apache-2.0",
+            category="chat",
+            citation="Turn-1 warm / Turn-2 resume methodology",
+            citation_url=TURN_RESUME_CITATION,
         ),
         TraceSource(
             id="ragpulse",
@@ -170,11 +185,15 @@ def discover_trace_sources() -> List[TraceSource]:
             family="RAGPulse",
             path=RAGPULSE_TRACE,
             mode="ragpulse",
-            description="Real RAG workload from campus Q&A; component hashes are expanded to KV blocks.",
+            description="Campus question answering over retrieved documents, with retrieval chunks hashed as shared prefixes.",
             cache_fidelity="component hash_ids expanded to 512-token blocks",
             available=RAGPULSE_TRACE.exists() and not _is_lfs_pointer(RAGPULSE_TRACE),
             source_url="https://github.com/flashserve/RAGPulse",
             source_label="flashserve/RAGPulse",
+            license="MIT",
+            category="rag",
+            citation="flashserve/RAGPulse",
+            citation_url="https://github.com/flashserve/RAGPulse",
         ),
         TraceSource(
             id="cc-weka-subagents",
@@ -182,7 +201,7 @@ def discover_trace_sources() -> List[TraceSource]:
             family="SemiAnalysis CC",
             path=CC_WEKA_TRACE,
             mode="cc_weka",
-            description="Agentic coding traces with sub-agent fan-out; requires local Git LFS payload.",
+            description="Agentic coding traces with sub-agent fan-out. The payload is fetched separately.",
             cache_fidelity="64-token local hash_ids folded to 512-token blocks",
             available=CC_WEKA_TRACE.exists() and not _is_lfs_pointer(CC_WEKA_TRACE),
             status="ready" if CC_WEKA_TRACE.exists() and not _is_lfs_pointer(CC_WEKA_TRACE) else "Git LFS payload missing",
@@ -190,83 +209,94 @@ def discover_trace_sources() -> List[TraceSource]:
             source_url="https://huggingface.co/datasets/semianalysisai/cc-traces-weka-with-subagents-051826",
             source_label="SemiAnalysis CC traces",
             license="Apache-2.0",
-        ),
-        TraceSource(
-            id="codex-swebenchpro",
-            label="Codex SWE-bench Pro",
-            family="Codex",
-            path=CODEX_SWEBENCHPRO_TRACE,
-            mode="codex_swebenchpro",
-            description="Real SWE-bench Pro agentic workload traces generated by Codex agent.",
-            cache_fidelity="pending schema inspection after Git LFS payload is present",
-            available=CODEX_SWEBENCHPRO_TRACE.exists() and not _is_lfs_pointer(CODEX_SWEBENCHPRO_TRACE),
-            status="ready" if CODEX_SWEBENCHPRO_TRACE.exists() and not _is_lfs_pointer(CODEX_SWEBENCHPRO_TRACE) else "Git LFS payload missing",
-            source_label="Local Codex SWE-bench Pro trace",
+            category="agents",
+            citation="SemiAnalysis CC traces",
+            citation_url="https://huggingface.co/datasets/semianalysisai/cc-traces-weka-with-subagents-051826",
         ),
         TraceSource(
             id="sageserve-enterprise",
-            label="SageServe Enterprise Sydney",
+            label="SageServe Enterprise",
             family="SageServe",
             path=SAGESERVE_ENTERPRISE_TRACE,
             mode="sageserve_request_csv",
-            description="Enterprise multi-model prod/dev request trace with SageServe arrival, model, region, and workload metadata.",
+            description="A week of enterprise request arrivals. Prefix blocks are derived, so reuse is modeled rather than measured.",
             cache_fidelity="deterministic enterprise prefix families expanded to 512-token blocks",
             available=SAGESERVE_ENTERPRISE_TRACE.exists() and not _is_lfs_pointer(SAGESERVE_ENTERPRISE_TRACE),
             status="ready" if SAGESERVE_ENTERPRISE_TRACE.exists() else "not found: SageServe traces/week-dp.csv",
             source_url="https://github.com/shashwatj07/SageServe",
             source_label="shashwatj07/SageServe",
+            license="MIT",
+            category="chat",
+            citation="shashwatj07/SageServe",
+            citation_url="https://github.com/shashwatj07/SageServe",
         ),
         TraceSource(
             id="sageserve-code",
-            label="SageServe Code Distribution",
+            label="SageServe Code",
             family="SageServe",
             path=SAGESERVE_CODE_TRACE,
             mode="sageserve_distribution_csv",
-            description="Timestamped code workload distribution from SageServe with prompt and generated token sizes.",
+            description="Code workload request sizes. Prefix blocks are derived, so reuse is modeled rather than measured.",
             cache_fidelity="deterministic code prefix families expanded to 512-token blocks",
             available=SAGESERVE_CODE_TRACE.exists() and not _is_lfs_pointer(SAGESERVE_CODE_TRACE),
             status="ready" if SAGESERVE_CODE_TRACE.exists() else "not found",
             source_url="https://github.com/shashwatj07/SageServe",
             source_label="shashwatj07/SageServe",
+            license="MIT",
+            category="agents",
+            citation="shashwatj07/SageServe",
+            citation_url="https://github.com/shashwatj07/SageServe",
         ),
         TraceSource(
             id="sageserve-conversation",
-            label="SageServe Conversation Distribution",
+            label="SageServe Conversation",
             family="SageServe",
             path=SAGESERVE_CONV_TRACE,
             mode="sageserve_distribution_csv",
-            description="Timestamped enterprise conversation distribution from SageServe with prompt and generated token sizes.",
+            description="Enterprise chat request sizes over a week. Prefix blocks are derived, so reuse is modeled rather than measured.",
             cache_fidelity="deterministic conversation prefix families expanded to 512-token blocks",
             available=SAGESERVE_CONV_TRACE.exists() and not _is_lfs_pointer(SAGESERVE_CONV_TRACE),
             status="ready" if SAGESERVE_CONV_TRACE.exists() else "not found",
             source_url="https://github.com/shashwatj07/SageServe",
             source_label="shashwatj07/SageServe",
+            license="MIT",
+            category="chat",
+            citation="shashwatj07/SageServe",
+            citation_url="https://github.com/shashwatj07/SageServe",
         ),
         TraceSource(
             id="azure-conversation",
             label="Azure LLM Conversation",
-            family="aiperf-toolkit",
+            family="Azure",
             path=AIPERF_TOOLKIT / "examples" / "trace-replay-elastic-viewer" / "traces" / "AzureLLMInferenceTrace_conv_1week.csv",
             mode="unsupported",
-            description="Available in aiperf-toolkit, but no KV hash_ids are present for prefix-cache integrity.",
+            description="Public Azure LLM inference trace. It has no prefix hashes, so Tracerator cannot replay its KV cache.",
             cache_fidelity="unavailable",
             available=False,
             status="unsupported: no hash_ids",
-            source_url="https://github.com/NVIDIA/aiperf",
-            source_label="NVIDIA AIPerf toolkit",
+            source_url="https://github.com/Azure/AzurePublicDataset",
+            source_label="Azure Public Dataset",
+            license="CC-BY-4.0",
+            category="chat",
+            citation="Azure LLM inference trace, Microsoft, CC-BY-4.0",
+            citation_url="https://github.com/Azure/AzurePublicDataset",
         ),
         TraceSource(
             id="burstgpt",
             label="BurstGPT",
-            family="aiperf-toolkit",
+            family="BurstGPT",
             path=AIPERF_TOOLKIT / "examples" / "trace-replay-elastic-viewer" / "traces" / "BurstGPT_without_fails_1.csv",
             mode="unsupported",
-            description="Available in aiperf-toolkit, but no KV hash_ids are present for prefix-cache integrity.",
+            description="Public BurstGPT arrivals. The release has no prefix hashes, so it stays reference-only.",
             cache_fidelity="unavailable",
             available=False,
             status="unsupported: no hash_ids",
             source_url="https://github.com/HPMLL/BurstGPT",
             source_label="BurstGPT",
+            license="CC-BY-4.0",
+            category="chat",
+            citation="BurstGPT, HPMLL, CC-BY-4.0",
+            citation_url="https://github.com/HPMLL/BurstGPT",
         ),
     ]
     return sources
@@ -297,6 +327,9 @@ def sources_for_api() -> List[Dict[str, Any]]:
             "source_url": source.source_url,
             "source_label": source.source_label,
             "license": source.license,
+            "category": source.category,
+            "citation": source.citation,
+            "citation_url": source.citation_url,
         })
     return out
 
@@ -311,8 +344,6 @@ def load_source_records(source_id: str, max_records: Optional[int] = None) -> Li
         records = _load_ragpulse(source.path, max_records=max_records)
     elif source.mode == "cc_weka":
         records = _load_cc_weka(source.path, max_records=max_records)
-    elif source.mode == "codex_swebenchpro":
-        records = _load_codex_swebenchpro(source.path, max_records=max_records)
     elif source.mode == "sageserve_request_csv":
         records = _load_sageserve_request_csv(source.path, source.id, max_records=max_records)
     elif source.mode == "sageserve_distribution_csv":
@@ -583,66 +614,6 @@ def _load_cc_weka(path: Path, max_records: Optional[int] = None) -> List[Dict[st
                 _append_cc_request(records, entry, trace_id, trace_offset_ms)
         if records:
             trace_offset_ms = max(r["timestamp"] for r in records) + 10_000
-    return records
-
-
-def _load_codex_swebenchpro(path: Path, max_records: Optional[int] = None) -> List[Dict[str, Any]]:
-    """
-    Load Codex SWE-bench Pro once its LFS payload is present.
-
-    The local checkout currently contains only a Git LFS pointer, and the README does
-    not document the full JSON schema. This loader supports common trace shapes and
-    intentionally fails loud if the payload uses a new shape we have not mapped yet.
-    """
-    with path.open("r", encoding="utf-8") as handle:
-        data = json.load(handle)
-    if isinstance(data, dict):
-        if isinstance(data.get("requests"), list):
-            rows = data["requests"]
-        elif isinstance(data.get("traces"), list):
-            rows = []
-            for trace_idx, trace in enumerate(data["traces"]):
-                trace_id = str(trace.get("id", trace_idx)) if isinstance(trace, dict) else str(trace_idx)
-                for req in (trace.get("requests", []) if isinstance(trace, dict) else []):
-                    item = dict(req)
-                    item.setdefault("trace_id", trace_id)
-                    rows.append(item)
-        else:
-            raise ValueError("Unsupported Codex SWE-bench Pro JSON object shape")
-    elif isinstance(data, list):
-        rows = data
-    else:
-        raise ValueError("Unsupported Codex SWE-bench Pro JSON shape")
-
-    records: List[Dict[str, Any]] = []
-    current_ts = 0
-    for idx, row in enumerate(rows):
-        if max_records is not None and len(records) >= max_records:
-            break
-        if not isinstance(row, dict):
-            continue
-        input_length = row.get("input_length", row.get("input_tokens", row.get("in")))
-        output_length = row.get("output_length", row.get("output_tokens", row.get("out", 1)))
-        hash_ids = row.get("hash_ids", row.get("hashes", []))
-        if input_length is None or not hash_ids:
-            raise ValueError("Codex SWE-bench Pro payload lacks input_length/hash_ids fields in a supported shape")
-        if "timestamp" in row:
-            timestamp = int(round(float(row["timestamp"])))
-        elif "t" in row:
-            timestamp = int(round(float(row["t"]) * 1000))
-        elif "pre_gap" in row:
-            current_ts += int(round(float(row["pre_gap"]) * 1000))
-            timestamp = current_ts
-        else:
-            timestamp = idx * 1000
-        records.append({
-            "timestamp": timestamp,
-            "input_length": int(input_length),
-            "output_length": max(1, int(output_length)),
-            "hash_ids": [int(_stable_int(v, salt="codex-swebenchpro")) if not isinstance(v, int) else v for v in hash_ids],
-            "trace_id": row.get("trace_id") or row.get("session_id"),
-            "model": row.get("model"),
-        })
     return records
 
 

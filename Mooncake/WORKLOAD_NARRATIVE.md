@@ -98,6 +98,7 @@ See the paper for how these drove the design of KVCache-centric Conductor, chunk
 ---
 
 ## References
-- Mooncake FAST25 paper (in this dir).
+- Mooncake paper, USENIX FAST '25: https://www.usenix.org/conference/fast25/presentation/qin
+- arXiv abstract: https://arxiv.org/abs/2407.00079
 - Original traces + code: https://github.com/kvcache-ai/Mooncake
 - Traces released under Appendix A of the paper.

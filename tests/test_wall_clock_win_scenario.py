@@ -21,10 +21,9 @@ class WallClockWinScenarioTests(unittest.TestCase):
 
         try:
             self.assertEqual(resp.status_code, 200)
-            self.assertIn(b"Trace Compare", resp.data)
             self.assertIn(b"manifest-files", resp.data)
             self.assertIn(b"manifest-list", resp.data)
-            self.assertIn(b"Add manifest file", resp.data)
+            self.assertIn(b"Add manifest or replay JSON", resp.data)
             self.assertIn(b"loadStoredComparePayload", resp.data)
             self.assertIn(b"function reindexTraces", resp.data)
             self.assertIn(b"tracerator_compare_payload", resp.data)
@@ -37,12 +36,11 @@ class WallClockWinScenarioTests(unittest.TestCase):
             self.assertIn(b"carbon.css", resp.data)
             self.assertIn(b"vertical-chart", resp.data)
             self.assertIn(b"download-chart", resp.data)
-            self.assertIn(b"Workspace", resp.data)
-            self.assertIn(b"Trace Profiles", resp.data)
-            self.assertIn(b"Trace Comparison", resp.data)
+            self.assertIn(b"Tracerator", resp.data)
+            self.assertIn(b"Traces", resp.data)
+            self.assertIn(b"Compare", resp.data)
             self.assertIn(b"workspace-run", resp.data)
-            self.assertIn(b"Print / save one-page PDF", resp.data)
-            self.assertIn(b"size: letter", resp.data)
+            self.assertIn(b"Print / PDF", resp.data)
             self.assertIn(b"simulations for planning", resp.data)
         finally:
             resp.close()
@@ -53,7 +51,8 @@ class WallClockWinScenarioTests(unittest.TestCase):
         try:
             self.assertEqual(home.status_code, 200)
             self.assertIn(b"new-run-btn", home.data)
-            self.assertIn(b"Workspace", home.data)
+            self.assertIn(b"Tracerator", home.data)
+            self.assertIn(b"Runs", home.data)
             self.assertIn(b"workspace.css", home.data)
             self.assertIn(b"workspace.js", home.data)
         finally:
@@ -89,56 +88,69 @@ class WallClockWinScenarioTests(unittest.TestCase):
         finally:
             resp.close()
 
-    def test_profiles_page_route_serves_reference_graphs(self):
+    def test_profiles_redirects_to_trace_pages(self):
         client = app.test_client()
-        resp = client.get("/profiles")
-
+        redirect = client.get("/profiles")
         try:
-            self.assertEqual(resp.status_code, 200)
-            self.assertIn(b"Trace Profiles", resp.data)
-            self.assertIn(b"Mooncake Conversation", resp.data)
-            self.assertIn(b"Mooncake Tool", resp.data)
-            self.assertIn(b"SageServe Code Distribution", resp.data)
-            self.assertIn(b"SageServe Conversation Distribution", resp.data)
-            self.assertIn(b"Enterprise code workload", resp.data)
-            self.assertIn(b"Enterprise conversation workload", resp.data)
-            self.assertIn(b"KV Reuse Stress Scenario", resp.data)
-            self.assertIn(b"Figure 3: Benchmarking workflow", resp.data)
-            self.assertIn(b"Capture traces", resp.data)
-            self.assertIn(b"Normalize schema", resp.data)
-            self.assertIn(b"Output sizing and cost model", resp.data)
-            self.assertIn(b"benchmarking_workflow.png", resp.data)
-            self.assertIn(b"Effective Efficiency", resp.data)
-            self.assertNotIn(b"effective_efficiency", resp.data)
-            self.assertIn(b"successful outputs", resp.data)
-            self.assertIn(b"storage I/O", resp.data)
-            self.assertIn(b"kv_hierarchy_latency.png", resp.data)
-            self.assertIn(b"Retrieval speed versus recompute", resp.data)
-            self.assertIn(b".bar { fill: #161616; }", resp.data)
+            self.assertEqual(redirect.status_code, 302)
+            self.assertTrue(redirect.headers["Location"].endswith("/traces"))
         finally:
-            resp.close()
+            redirect.close()
 
-    def test_static_ui_uses_square_carbon_style(self):
+        page = client.get("/traces")
+        try:
+            self.assertEqual(page.status_code, 200)
+            self.assertIn(b"Which Workload Should You Replay?", page.data)
+            self.assertIn(b"Mooncake Conversation", page.data)
+            self.assertIn(b"KV Reuse Stress", page.data)
+            self.assertNotIn(b"benchmarking_workflow.png", page.data)
+            self.assertNotIn(b"kv_hierarchy_latency.png", page.data)
+            self.assertNotIn(b"Effective Efficiency", page.data)
+        finally:
+            page.close()
+
+        trace = client.get("/traces/conversation")
+        try:
+            self.assertEqual(trace.status_code, 200)
+            self.assertIn(b"trace_page.js", trace.data)
+        finally:
+            trace.close()
+
+        download = client.get("/traces/conversation/trace.jsonl")
+        try:
+            self.assertEqual(download.status_code, 200)
+            self.assertIn(b"hash_ids", download.data)
+        finally:
+            download.close()
+
+    def test_static_ui_uses_phase_1a_visual_rules(self):
         repo = Path(__file__).resolve().parents[1]
-        for relative in (
-            "site/index.html",
-            "site/run.html",
-            "site/compare.html",
-            "site/profiles.html",
-            "site/carbon.css",
-            "site/css/workspace.css",
+        files = [
+            path for path in (repo / "site").rglob("*")
+            if path.suffix in {".css", ".html", ".js"} and path.is_file()
+        ]
+        self.assertTrue(files)
+        for path in files:
+            text = path.read_text(encoding="utf-8")
+            relative = str(path.relative_to(repo))
+            self.assertNotIn("Plex Mono", text, relative)
+            self.assertNotIn("font-mono", text, relative)
+            for match in re.finditer(r"border-radius:\s*([0-9.]+)px", text):
+                self.assertLessEqual(float(match.group(1)), 8, relative)
+            self.assertIsNone(re.search(r"border-radius:\s*[0-9.]+%", text), relative)
+            stripped = re.sub(r"(?:pre|code|kbd)[^{]*\{[^}]*\}", "", text)
+            self.assertNotIn("monospace", stripped, relative)
+
+    def test_profile_figure_assets_are_gone(self):
+        repo = Path(__file__).resolve().parents[1]
+        for name in (
+            "kv_hierarchy_latency.png",
+            "benchmarking_workflow.png",
+            "effective_efficiency_formula.png",
+            "effective_efficiency_model.png",
         ):
-            text = (repo / relative).read_text()
-            self.assertNotIn("rounded", text, relative)
-            self.assertIsNone(re.search(r'border-radius:\s*(?:[1-9]|0\.)', text), relative)
-            self.assertIsNone(re.search(r'rx="[^0"]+', text), relative)
-
-    def test_profiles_latency_diagram_asset_exists(self):
-        repo = Path(__file__).resolve().parents[1]
-        for name in ("kv_hierarchy_latency.png", "benchmarking_workflow.png"):
-            image = repo / "site" / name
-            self.assertTrue(image.exists(), name)
-            self.assertEqual(image.read_bytes()[:8], b"\x89PNG\r\n\x1a\n", name)
+            self.assertFalse((repo / "site" / name).exists(), name)
+        self.assertFalse((repo / "Mooncake" / "Mooncake-FAST25.pdf").exists())
 
     def test_scenario_trace_has_target_shape_and_block_integrity(self):
         reqs, manifest = generate_trace_data({
@@ -196,6 +208,9 @@ class WallClockWinScenarioTests(unittest.TestCase):
         self.assertIn("deterministic", sources["sageserve-code"]["cache_fidelity"])
 
     def test_sageserve_distribution_loader_preserves_shape_and_block_integrity(self):
+        from trace_sources import source_by_id
+        if not source_by_id("sageserve-code").available:
+            self.skipTest("SageServe distribution CSVs are not in this checkout")
         code = load_source_records("sageserve-code", max_records=128)
         conversation = load_source_records("sageserve-conversation", max_records=128)
 

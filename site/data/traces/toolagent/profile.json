@@ -1,0 +1,343 @@
+{
+  "schema_version": "tracerator.trace_profile.v1",
+  "id": "toolagent",
+  "request_count": 23608,
+  "duration_ms": 3536999,
+  "duration_min": 59,
+  "avg_rps": 6.67,
+  "peak_per_second": 47,
+  "median_input": 6346,
+  "p90_input": 16804,
+  "p99_input": 61671,
+  "median_output": 30,
+  "blocks_reused": 0.5525,
+  "unique_blocks": 183300,
+  "total_blocks": 409616,
+  "reused_blocks": 226316,
+  "chain_reused_blocks": 219766,
+  "chain_reuse_share": 0.9711,
+  "rpm": [
+    313,
+    330,
+    440,
+    350,
+    355,
+    332,
+    319,
+    341,
+    342,
+    370,
+    438,
+    394,
+    373,
+    398,
+    367,
+    313,
+    347,
+    349,
+    393,
+    427,
+    407,
+    422,
+    420,
+    420,
+    343,
+    456,
+    365,
+    407,
+    439,
+    405,
+    442,
+    392,
+    380,
+    402,
+    440,
+    412,
+    469,
+    357,
+    444,
+    463,
+    403,
+    441,
+    403,
+    431,
+    424,
+    387,
+    400,
+    429,
+    429,
+    449,
+    418,
+    459,
+    419,
+    433,
+    401,
+    441,
+    428,
+    427,
+    410
+  ],
+  "input_histogram": [
+    {
+      "label": "1K",
+      "count": 1241,
+      "share": 0.052567
+    },
+    {
+      "label": "2K",
+      "count": 1337,
+      "share": 0.056633
+    },
+    {
+      "label": "4K",
+      "count": 4379,
+      "share": 0.185488
+    },
+    {
+      "label": "8K",
+      "count": 11531,
+      "share": 0.488436
+    },
+    {
+      "label": "16K",
+      "count": 2679,
+      "share": 0.113478
+    },
+    {
+      "label": "32K",
+      "count": 1716,
+      "share": 0.072687
+    },
+    {
+      "label": "64K",
+      "count": 514,
+      "share": 0.021772
+    },
+    {
+      "label": "128K",
+      "count": 211,
+      "share": 0.008938
+    },
+    {
+      "label": ">128K",
+      "count": 0,
+      "share": 0.0
+    }
+  ],
+  "output_histogram": [
+    {
+      "label": "1K",
+      "count": 23459,
+      "share": 0.993689
+    },
+    {
+      "label": "2K",
+      "count": 149,
+      "share": 0.006311
+    },
+    {
+      "label": "4K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "8K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "16K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "32K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "64K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "128K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": ">128K",
+      "count": 0,
+      "share": 0.0
+    }
+  ],
+  "footer": "Peak 47 requests in one second",
+  "sessions": {
+    "count": 6964,
+    "continued": 16644,
+    "branches": 410,
+    "with_parent": 17054,
+    "longest": 188,
+    "turn_histogram": [
+      {
+        "label": "1",
+        "count": 4492,
+        "share": 0.645032
+      },
+      {
+        "label": "2",
+        "count": 1200,
+        "share": 0.172315
+      },
+      {
+        "label": "3",
+        "count": 442,
+        "share": 0.063469
+      },
+      {
+        "label": "4",
+        "count": 206,
+        "share": 0.029581
+      },
+      {
+        "label": "5",
+        "count": 134,
+        "share": 0.019242
+      },
+      {
+        "label": "6",
+        "count": 64,
+        "share": 0.00919
+      },
+      {
+        "label": "7",
+        "count": 33,
+        "share": 0.004739
+      },
+      {
+        "label": "8+",
+        "count": 393,
+        "share": 0.056433
+      }
+    ]
+  },
+  "gaps": {
+    "count": 17054,
+    "median_s": 0.0,
+    "p90_s": 171.0,
+    "histogram": [
+      {
+        "label": "1s",
+        "count": 10054,
+        "share": 0.589539
+      },
+      {
+        "label": "10s",
+        "count": 2211,
+        "share": 0.129647
+      },
+      {
+        "label": "1m",
+        "count": 1065,
+        "share": 0.062449
+      },
+      {
+        "label": "5m",
+        "count": 2847,
+        "share": 0.16694
+      },
+      {
+        "label": "15m",
+        "count": 833,
+        "share": 0.048845
+      },
+      {
+        "label": ">15m",
+        "count": 44,
+        "share": 0.00258
+      }
+    ]
+  },
+  "window_10m": {
+    "requests": 3511,
+    "sessions": 1165
+  },
+  "kv": [
+    {
+      "id": "qwen3-32b",
+      "name": "Qwen3-32B",
+      "layout": "GQA, 8 KV heads, 64 layers",
+      "bytes_per_token": 262144,
+      "per_token": "256 KiB",
+      "whole_trace_bytes": 24602109542400,
+      "whole_trace": "22.4 TiB",
+      "median_prompt_bytes": 1663565824,
+      "median_prompt": "1.55 GiB"
+    },
+    {
+      "id": "deepseek-v3",
+      "name": "DeepSeek-V3",
+      "layout": "MLA, 576 values per layer, 61 layers",
+      "bytes_per_token": 70656,
+      "per_token": "69 KiB",
+      "whole_trace_bytes": 6631037337600,
+      "whole_trace": "6.0 TiB",
+      "median_prompt_bytes": 448382976,
+      "median_prompt": "0.42 GiB"
+    },
+    {
+      "id": "nemotron-3-super",
+      "name": "Nemotron 3 Super 120B-A12B",
+      "layout": "8 attention layers, plus Mamba state per sequence",
+      "bytes_per_token": 8192,
+      "per_token": "8 KiB",
+      "whole_trace_bytes": 768815923200,
+      "whole_trace": "0.7 TiB",
+      "median_prompt_bytes": 51986432,
+      "median_prompt": "0.05 GiB"
+    }
+  ],
+  "notes": {
+    "arrival": "Load holds near 400 a minute with short spikes. Within a second it peaks at 47 requests, which is the burst a Poisson generator at the same average almost never makes.",
+    "prompts": "Half the prompts are under 6.3K tokens, and one in ten is over 16.8K. The long tail is where prefill time and KV size grow fastest.",
+    "turns": "A turn joins a session when its leading block hashes match an earlier request for at least two blocks, using the longest match. 16,644 requests continue an earlier one, and that chain accounts for 97% of all reused blocks.",
+    "gaps": "The median follow-up lands under a second later and one in ten waits over 3 minutes. A cache has to hold that context the whole time or the next turn pays full prefill again.",
+    "kv": "This trace needs about 22.4 TiB of KV on a dense GQA model and 0.7 TiB on a hybrid model with few attention layers. That gap decides whether host memory is enough or a shared tier is needed."
+  },
+  "kpis": [
+    {
+      "value": "23,608",
+      "label": "requests in 59 min"
+    },
+    {
+      "value": "6.7/s",
+      "label": "average, peak 47 in 1 s"
+    },
+    {
+      "value": "6.3K",
+      "label": "median input, p99 61.7K"
+    },
+    {
+      "value": "30",
+      "label": "median output tokens"
+    },
+    {
+      "value": "55%",
+      "label": "of prefix blocks seen before"
+    },
+    {
+      "value": "6,964",
+      "label": "sessions, longest 188 turns"
+    }
+  ],
+  "title": "Mooncake Tool and Agent",
+  "family": "Mooncake",
+  "page_summary": "One hour of agent and tool traffic from the same Mooncake release. Turns come back within seconds, outputs stay short, and prefix blocks are shared heavily.",
+  "description": "Agent loops that come back within seconds with short outputs and heavy prefix reuse.",
+  "license": "Apache-2.0",
+  "source_label": "Mooncake FAST '25 traces",
+  "source_url": "https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+  "citation": "Qin et al., Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving, USENIX FAST 2025",
+  "citation_url": "https://www.usenix.org/conference/fast25/presentation/qin",
+  "category": "agents"
+}

@@ -12,7 +12,9 @@ Runs persist in SQLite (`artifacts/tracerator.db`, override `TRACERATOR_DB`). Tr
 |------|----------|
 | `/` | Workspace. List, search, filter runs. **New run** creates a draft. |
 | `/runs/<id>/view` | Run detail. Alias `/run/<id>`. |
-| `/profiles` | Reference ISL shapes and KV hierarchy figure. |
+| `/traces` | Trace cards and per-trace profiles. `/profiles` redirects here. |
+| `/traces/<id>` | Full profile for one trace. |
+| `/workflows` | Start a run from a trace. The canvas comes later. |
 | `/compare` | Up to five manifests or replay results, or saved runs. HTML/PNG export. |
 | `/study` | Trace-driven sizing study. |
 
@@ -24,7 +26,7 @@ Run detail stepper:
 4. Inspect — Overview, Workload, Timeline, Prefix, Waterfall, Events, Results, Data.
 5. Narrative — auto-built markdown.
 
-Golden source controls appear when the baseline is **LightInferra-style golden**. See [How to generate an external-KV golden trace](how-to/generate-an-external-kv-golden-trace.md).
+Golden source controls appear when the baseline is **Turn-1 warm / Turn-2 resume**. See [How to generate an external-KV golden trace](how-to/generate-an-external-kv-golden-trace.md).
 
 HTTP paths: [HTTP API](reference/http-api.md).
 

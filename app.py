@@ -11,7 +11,7 @@ from datetime import datetime
 from html import escape
 from io import BytesIO
 from pathlib import Path
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, redirect, request, send_file, jsonify
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "Mooncake" / "trace_gen"))
 from generator import analyze_trace, generate_extended  # noqa: E402
@@ -680,12 +680,12 @@ def generate_lightinferra_golden_trace_data(params):
     source = source_by_id(LIGHTINFERRA_GOLDEN_SOURCE)
     suite = str(params.get("lightinferra_suite") or "headline")
     if suite not in {"headline", "curve"}:
-        raise ValueError("LightInferra suite must be 'headline' or 'curve'")
+        raise ValueError("Golden suite must be 'headline' or 'curve'")
 
     model_id = str(params.get("lightinferra_model") or "qwen2.5-7b")
     model = GOLDEN_MODELS.get(model_id)
     if model is None:
-        raise ValueError(f"Unknown LightInferra golden model: {model_id}")
+        raise ValueError(f"Unknown golden model: {model_id}")
     allowed_contexts = tuple(model.references) if suite == "headline" else tuple(model.curve_points)
     default_context = max(allowed_contexts)
     try:
@@ -700,7 +700,7 @@ def generate_lightinferra_golden_trace_data(params):
         output_tokens = int(params.get("lightinferra_output_tokens") or DEFAULT_OUTPUT_TOKENS)
         seed = int(params.get("seed") or LIGHTINFERRA_DEFAULT_SEED)
     except (TypeError, ValueError) as exc:
-        raise ValueError(f"Invalid LightInferra golden parameter: {exc}") from exc
+        raise ValueError(f"Invalid golden parameter: {exc}") from exc
     if context_tokens not in allowed_contexts:
         raise ValueError(
             f"Context {context_tokens:,} is not in the {suite} suite for {model_id}"
@@ -785,7 +785,7 @@ def generate_lightinferra_golden_trace_data(params):
             "phase_record_counts": {"turn1": len(turn1), "turn2": len(turn2)},
         },
         "note": (
-            "Deterministic LightInferra-style golden case. Published numbers are "
+            "Deterministic Turn-1 warm / Turn-2 resume case. Published numbers are "
             "external reference points, not automatic pass/fail thresholds."
         ),
     }
@@ -828,7 +828,40 @@ def serve_compare():
 
 @app.route('/profiles')
 def serve_profiles():
-    return app.send_static_file('profiles.html')
+    return redirect('/traces', code=302)
+
+
+@app.route('/traces')
+def serve_traces():
+    return app.send_static_file('traces.html')
+
+
+@app.route('/workflows')
+def serve_workflows():
+    return app.send_static_file('workflows.html')
+
+
+_TRACE_FILES = {
+    "conversation": Path(__file__).resolve().parent / "Mooncake" / "traces" / "conversation_trace.jsonl",
+    "toolagent": Path(__file__).resolve().parent / "Mooncake" / "traces" / "toolagent_trace.jsonl",
+    "synthetic": Path(__file__).resolve().parent / "Mooncake" / "traces" / "synthetic_trace.jsonl",
+    "wall-clock-win": Path(__file__).resolve().parent / "site" / "data" / "traces" / "wall-clock-win" / "trace.jsonl",
+}
+
+
+@app.route('/traces/<trace_id>/trace.jsonl')
+def download_trace_jsonl(trace_id):
+    path = _TRACE_FILES.get(trace_id)
+    if path is None or not path.is_file():
+        return jsonify({"error": "This trace has no bundled JSONL"}), 404
+    return send_file(path, mimetype="application/x-ndjson", as_attachment=True, download_name=f"{trace_id}.jsonl")
+
+
+@app.route('/traces/<trace_id>')
+def serve_trace(trace_id):
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,80}", trace_id):
+        return jsonify({"error": "unknown trace"}), 404
+    return app.send_static_file('trace.html')
 
 @app.route('/study')
 def serve_study():
@@ -987,7 +1020,7 @@ def _persist_lightinferra_artifacts(run_id, records, manifest):
     repetitions = int(workload.get("repetitions") or 0)
     gap_ms = int(workload.get("recommended_turn2_delay_ms") or 0)
     if repetitions <= 0 or len(records) != repetitions * 2:
-        raise ValueError("LightInferra golden run has an invalid Turn-1/Turn-2 record layout")
+        raise ValueError("Golden run has an invalid Turn-1/Turn-2 record layout")
 
     turn1 = []
     turn2 = []
@@ -1452,7 +1485,6 @@ def sources():
 
 
 @app.route('/sources/lightinferra-golden/options', methods=['GET'])
-@app.route('/sources/lightinferra-ddn-golden/options', methods=['GET'])
 def lightinferra_golden_options_route():
     return jsonify(lightinferra_golden_options())
 

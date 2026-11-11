@@ -1,21 +1,18 @@
 /* Tracerator workspace — brand-first shell + run inspect */
 
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
-
 :root {
-  --tr-ink: #0b1220;
-  --tr-muted: #5c6b7a;
-  --tr-line: #c9d2dc;
-  --tr-surface: rgba(255, 255, 255, 0.78);
-  --tr-surface-solid: #f7f9fb;
-  --tr-accent: #0f62fe;
-  --tr-accent-ink: #003d9b;
-  --tr-ok: #198038;
-  --tr-warn: #b28600;
-  --tr-err: #da1e28;
-  --tr-pending: #8d8d8d;
+  --tr-ink: #201e1e;
+  --tr-muted: #4f6e92;
+  --tr-line: #d5dee8;
+  --tr-surface: #ffffff;
+  --tr-surface-solid: #ffffff;
+  --tr-accent: #1f6fd1;
+  --tr-accent-ink: #1f5faf;
+  --tr-ok: #1f5faf;
+  --tr-warn: #4f6e92;
+  --tr-err: #22314a;
+  --tr-pending: #7594b2;
   --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
 html, body {
@@ -26,11 +23,7 @@ body.workspace-body {
   margin: 0;
   color: var(--tr-ink);
   font-family: var(--font-sans);
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(15, 98, 254, 0.08), transparent 55%),
-    radial-gradient(900px 500px at 90% 0%, rgba(11, 18, 32, 0.06), transparent 50%),
-    linear-gradient(165deg, #e8eef4 0%, #f4f6f8 42%, #eef1f5 100%) !important;
-  background-attachment: fixed;
+  background: #f4f6f9 !important;
 }
 
 .workspace-shell {
@@ -41,39 +34,64 @@ body.workspace-body {
 
 .workspace-nav {
   display: flex;
-  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 32px;
+  height: 56px;
+  padding: 0 32px;
+  background: #fff;
+  border-bottom: 1px solid var(--line, #d5dee8);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.nav-brand {
+  display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 28px;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--dark, #22314a);
+  text-decoration: none;
 }
 
 .workspace-nav .nav-links {
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--tr-surface);
-  border: 1px solid var(--tr-line);
-  backdrop-filter: blur(8px);
+  gap: 0;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  border: none;
 }
 
 .workspace-nav .nav-links a {
-  padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--tr-muted);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--navy, #374967);
   text-decoration: none;
-  transition: background 160ms ease, color 160ms ease;
+  border-bottom: 2px solid transparent;
+  background: transparent;
 }
 
 .workspace-nav .nav-links a:hover {
-  color: var(--tr-ink);
-  background: rgba(255, 255, 255, 0.9);
+  color: var(--dark, #22314a);
+  background: transparent;
 }
 
 .workspace-nav .nav-links a.active {
-  background: var(--tr-ink);
-  color: #fff;
+  background: transparent;
+  color: var(--dark, #22314a);
+  font-weight: 600;
+  border-bottom-color: var(--blue, #1f6fd1);
+}
+
+.workspace-nav .nav-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Brand-first home hero */
@@ -104,6 +122,15 @@ body.workspace-body {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.btn,
+.panel,
+.status-chip,
+input,
+select,
+textarea {
+  border-radius: 8px;
 }
 
 .btn {
@@ -147,8 +174,6 @@ body.workspace-body {
 .section-label {
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--tr-muted);
   margin: 0 0 12px;
 }
@@ -187,15 +212,13 @@ body.workspace-body {
   font-size: 12px;
   color: var(--tr-muted);
   margin-top: 2px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .status-chip {
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   padding: 3px 8px;
   border: 1px solid var(--tr-line);
   color: var(--tr-muted);
@@ -233,7 +256,7 @@ body.workspace-body {
   margin: 6px 0 0;
   color: var(--tr-muted);
   font-size: 13px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .kpi-strip {
@@ -256,8 +279,6 @@ body.workspace-body {
 
 .kpi .label {
   font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--tr-muted);
   font-weight: 600;
 }
@@ -265,7 +286,7 @@ body.workspace-body {
 .kpi .value {
   font-size: 18px;
   font-weight: 700;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   margin-top: 2px;
 }
 
@@ -437,7 +458,7 @@ body.workspace-body {
   gap: 6px 14px;
   max-width: calc(100% - 28px);
   color: var(--tr-ink);
-  font: 600 11px var(--font-mono);
+  font: 600 11px var(--font-sans);
   pointer-events: none;
 }
 
@@ -482,14 +503,12 @@ body.workspace-body {
   color: var(--tr-muted);
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .sizing-summary strong {
   display: block;
   margin-top: 3px;
-  font: 600 18px var(--font-mono);
+  font: 600 18px var(--font-sans);
 }
 
 .sizing-narrative {
@@ -509,7 +528,7 @@ body.workspace-body {
   gap: 8px;
   align-items: center;
   min-height: 24px;
-  font: 500 11px var(--font-mono);
+  font: 500 11px var(--font-sans);
 }
 
 .sizing-sweep-track {
@@ -540,7 +559,7 @@ body.workspace-body {
 
 .input-suffix span {
   color: var(--tr-muted);
-  font: 600 11px var(--font-mono);
+  font: 600 11px var(--font-sans);
   text-align: center;
 }
 
@@ -570,8 +589,7 @@ body.workspace-body {
   flex: 0 0 auto;
   padding: 4px 8px;
   border: 1px solid var(--tr-line-strong);
-  font: 600 10px var(--font-mono);
-  text-transform: uppercase;
+  font: 600 10px var(--font-sans);
 }
 
 .status-pill.ok {
@@ -604,13 +622,12 @@ body.workspace-body {
   color: var(--tr-muted);
   font-size: 10px;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
 .analytical-grid strong {
   display: block;
   margin-top: 4px;
-  font: 600 15px var(--font-mono);
+  font: 600 15px var(--font-sans);
 }
 
 .memory-meter {
@@ -646,7 +663,7 @@ body.workspace-body {
   min-height: 34px;
   padding: 0 10px;
   background: var(--tr-surface);
-  font: 500 11px var(--font-mono);
+  font: 500 11px var(--font-sans);
 }
 
 .phase-row.header {
@@ -654,7 +671,6 @@ body.workspace-body {
   color: var(--tr-muted);
   font-size: 9px;
   font-weight: 600;
-  text-transform: uppercase;
 }
 
 /* Forms */
@@ -728,7 +744,7 @@ label.field select {
 }
 
 .trace-card .hero {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 22px;
   font-weight: 700;
 }
@@ -753,7 +769,7 @@ label.field select {
 
 /* Charts */
 .chart-svg { width: 100%; height: auto; display: block; }
-.mono { font-family: var(--font-mono); }
+.mono { font-family: var(--font-sans); }
 .muted { color: var(--tr-muted); }
 .mt-2 { margin-top: 8px; }
 .mt-3 { margin-top: 12px; }
@@ -796,7 +812,7 @@ label.field select {
 .narrative-body ul { margin: 0; padding-left: 1.2em; }
 
 pre.raw {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   line-height: 1.35;
   overflow: auto;
@@ -1029,11 +1045,10 @@ pre.raw {
   font-size: 9px;
   line-height: 1;
   font-weight: 700;
-  letter-spacing: 0.08em;
 }
 
 .trace-card-serial {
-  font-family: var(--font-mono, "IBM Plex Mono", monospace);
+  font-family: var(--font-sans);
 }
 
 .trace-card-field {
@@ -1118,8 +1133,6 @@ pre.raw {
   font-size: 9px;
   line-height: 1.2;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .trace-card-identity h2 {
@@ -1161,7 +1174,6 @@ pre.raw {
   font-size: 7px;
   line-height: 1;
   font-weight: 700;
-  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
@@ -1192,7 +1204,7 @@ pre.raw {
 .trace-card-stats dd {
   margin: 2px 0 0;
   overflow: hidden;
-  font-family: var(--font-mono, "IBM Plex Mono", monospace);
+  font-family: var(--font-sans);
   font-size: 12px;
   line-height: 1;
   font-weight: 700;
@@ -1286,7 +1298,7 @@ pre.raw {
   padding-top: 12px;
   border-top: 1px solid #a6c8ff;
   color: var(--tr-text);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   line-height: 1.5;
 }
@@ -1338,16 +1350,16 @@ pre.raw {
   padding-bottom: 0;
 }
 
-.compare-control-row select,
 .compare-control-row .btn {
   box-sizing: border-box;
   height: 40px;
   min-height: 40px;
   margin: 0;
-  padding: 0 12px !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
-  line-height: 1 !important;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 8px;
 }
 
 .compare-control-row select {
@@ -1397,7 +1409,7 @@ pre.raw {
   margin-top: 3px;
   font-size: 11px;
   color: var(--tr-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .manifest-item__actions {
@@ -1440,7 +1452,7 @@ pre.raw {
   margin-top: 4px;
   font-size: 12px;
   color: var(--tr-muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .legend {
@@ -1521,8 +1533,6 @@ pre.raw {
 .compare-table th {
   color: var(--tr-muted);
   font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   font-weight: 600;
 }
 
@@ -1541,7 +1551,7 @@ pre.raw {
 }
 
 .bucket-row .bin {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 600;
   color: var(--tr-muted);
   padding-top: 4px;
@@ -1564,7 +1574,7 @@ pre.raw {
 }
 
 .trace-bar-row .stats {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   text-align: right;
   color: var(--tr-muted);
 }
@@ -1706,12 +1716,12 @@ pre.raw {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
+  border-radius: 2px;
   background: rgba(15, 98, 254, 0.12);
   color: var(--tr-accent);
   font-size: 11px;
   font-weight: 700;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
 }
 
 .cds-tab.complete .cds-tab-icon {
@@ -1838,9 +1848,8 @@ pre.raw {
 }
 
 .sec-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
-  letter-spacing: 0.1em;
   color: var(--tr-muted);
 }
 
@@ -1869,10 +1878,8 @@ pre.raw {
 
 .stat-row .stat .l {
   margin-top: 6px;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--tr-muted);
 }
 
@@ -1891,7 +1898,7 @@ pre.raw {
   justify-content: center;
   position: relative;
   color: #fff;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   font-weight: 600;
   min-width: 0;
@@ -1960,7 +1967,7 @@ pre.raw {
   align-items: center;
   padding-left: 10px;
   color: #fff;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 600;
 }
@@ -1990,7 +1997,7 @@ pre.raw {
   padding: 1px 4px;
   background: #e8edf2;
   color: #263746;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 0.88em;
 }
 
@@ -2016,11 +2023,9 @@ pre.raw {
 .study-report-kicker {
   margin: 0 0 8px !important;
   color: #0f62fe !important;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .study-report-header h1 {
@@ -2046,10 +2051,8 @@ pre.raw {
 .study-report-byline span {
   margin-bottom: 4px;
   color: #5c6b7a;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
 }
 
 .study-report-byline strong {
@@ -2081,12 +2084,10 @@ pre.raw {
 .study-report-metrics dt {
   overflow: hidden;
   color: #5c6b7a;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 8px;
   font-weight: 700;
-  letter-spacing: 0.05em;
   text-overflow: ellipsis;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -2119,11 +2120,9 @@ pre.raw {
   display: block;
   margin-bottom: 7px;
   color: #0f62fe;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
 }
 
 .study-report-section-head h2 {
@@ -2211,7 +2210,7 @@ pre.raw {
   justify-content: center;
   color: #fff;
   background: #0f62fe;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9px;
   font-weight: 700;
 }
@@ -2288,10 +2287,8 @@ pre.raw {
 .study-report-table th {
   color: #fff;
   background: #0b1220;
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 9px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
 }
 
 .study-report-table tbody tr:nth-child(even) {

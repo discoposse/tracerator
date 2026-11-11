@@ -1,7 +1,7 @@
-"""Build LightInferra-style Turn-1/Turn-2 golden traces for external KV tests.
+"""Build Turn-1 warm / Turn-2 resume traces for remote KV tests.
 
-The published LightInferra results are reference points, not pass/fail claims for
-another storage system. This module reproduces the observable workload shape:
+Published numbers from the cited methodology are reference points, not pass/fail
+claims for another storage system. This module reproduces the observable workload shape:
 an initial long-context prefill followed by a resume request with a fully shared
 prefix and a small new tail. Run the same bundle with remote KV disabled
 (cache regeneration) and enabled on an external KV store.
@@ -469,7 +469,7 @@ def write_bundle(
                 "persisted KV prefix"
             ),
             "not_reproduced": [
-                "LightInferra proprietary Sub-Linear Attention Prefetch page-selection logic",
+                "the cited methodology's page-selection logic",
                 "ScaleFlux computational-storage behavior",
                 "the original FarmGPU hardware/software environment",
             ],
@@ -491,7 +491,7 @@ def write_bundle(
 
 
 def _bundle_readme(manifest: Mapping[str, Any]) -> str:
-    return f"""# Tracerator LightInferra-style golden traces
+    return f"""# Tracerator Turn-1 warm / Turn-2 resume traces
 
 This `{manifest['suite']}` bundle contains {manifest['case_count']} deterministic
 Turn-1/Turn-2 cases. Run every case twice against the same inference stack:
@@ -503,15 +503,15 @@ For each case, `trace.jsonl` is the combined AIPerf/Mooncake trace. The separate
 `turn1_warm.jsonl` and `turn2_resume.jsonl` files are for a phase-aware runner that
 can explicitly evict GPU/host KV between turns while retaining the external KV
 namespace. `kv_io_summary.jsonl` is an upper-bound semantic I/O description; it is
-not a claim about the proprietary LightInferra page-selection algorithm.
+not a claim about the cited methodology's page-selection algorithm.
 
 Use `aiperf analyze-trace` first, then profile with the same model, tokenizer,
 fixed schedule, concurrency, and software versions for both comparison arms.
 Profile with `--export-level records`, then use
 `scripts/compare_lightinferra_golden.py` to isolate the odd-numbered Turn-2
 requests; run-level aggregate TTFT mixes Turn 1 and Turn 2.
-The published LightInferra numbers in each case manifest are external reference
-points, not automatic pass/fail thresholds.
+Published numbers in each case manifest are external reference points, not
+automatic pass/fail thresholds. The methodology citation is stored on the source.
 """
 
 

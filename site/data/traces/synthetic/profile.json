@@ -1,0 +1,302 @@
+{
+  "schema_version": "tracerator.trace_profile.v1",
+  "id": "synthetic",
+  "request_count": 3993,
+  "duration_ms": 1022025,
+  "duration_min": 17,
+  "avg_rps": 3.91,
+  "peak_per_second": 13,
+  "median_input": 11587,
+  "p90_input": 38615,
+  "p99_input": 66456,
+  "median_output": 69,
+  "blocks_reused": 0.6396,
+  "unique_blocks": 43924,
+  "total_blocks": 121877,
+  "reused_blocks": 77953,
+  "chain_reused_blocks": 77919,
+  "chain_reuse_share": 0.9996,
+  "rpm": [
+    208,
+    219,
+    218,
+    232,
+    214,
+    235,
+    222,
+    247,
+    244,
+    215,
+    259,
+    239,
+    239,
+    247,
+    231,
+    273,
+    240,
+    11
+  ],
+  "input_histogram": [
+    {
+      "label": "1K",
+      "count": 1218,
+      "share": 0.305034
+    },
+    {
+      "label": "2K",
+      "count": 83,
+      "share": 0.020786
+    },
+    {
+      "label": "4K",
+      "count": 288,
+      "share": 0.072126
+    },
+    {
+      "label": "8K",
+      "count": 286,
+      "share": 0.071625
+    },
+    {
+      "label": "16K",
+      "count": 531,
+      "share": 0.132983
+    },
+    {
+      "label": "32K",
+      "count": 942,
+      "share": 0.235913
+    },
+    {
+      "label": "64K",
+      "count": 598,
+      "share": 0.149762
+    },
+    {
+      "label": "128K",
+      "count": 37,
+      "share": 0.009266
+    },
+    {
+      "label": ">128K",
+      "count": 10,
+      "share": 0.002504
+    }
+  ],
+  "output_histogram": [
+    {
+      "label": "1K",
+      "count": 3993,
+      "share": 1.0
+    },
+    {
+      "label": "2K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "4K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "8K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "16K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "32K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "64K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": "128K",
+      "count": 0,
+      "share": 0.0
+    },
+    {
+      "label": ">128K",
+      "count": 0,
+      "share": 0.0
+    }
+  ],
+  "footer": "Peak 13 requests in one second",
+  "sessions": {
+    "count": 2321,
+    "continued": 1672,
+    "branches": 76,
+    "with_parent": 1748,
+    "longest": 15,
+    "turn_histogram": [
+      {
+        "label": "1",
+        "count": 1917,
+        "share": 0.825937
+      },
+      {
+        "label": "2",
+        "count": 57,
+        "share": 0.024558
+      },
+      {
+        "label": "3",
+        "count": 70,
+        "share": 0.030159
+      },
+      {
+        "label": "4",
+        "count": 64,
+        "share": 0.027574
+      },
+      {
+        "label": "5",
+        "count": 54,
+        "share": 0.023266
+      },
+      {
+        "label": "6",
+        "count": 53,
+        "share": 0.022835
+      },
+      {
+        "label": "7",
+        "count": 38,
+        "share": 0.016372
+      },
+      {
+        "label": "8+",
+        "count": 68,
+        "share": 0.029298
+      }
+    ]
+  },
+  "gaps": {
+    "count": 1748,
+    "median_s": 63.601,
+    "p90_s": 293.458,
+    "histogram": [
+      {
+        "label": "1s",
+        "count": 30,
+        "share": 0.017162
+      },
+      {
+        "label": "10s",
+        "count": 242,
+        "share": 0.138444
+      },
+      {
+        "label": "1m",
+        "count": 576,
+        "share": 0.329519
+      },
+      {
+        "label": "5m",
+        "count": 735,
+        "share": 0.420481
+      },
+      {
+        "label": "15m",
+        "count": 165,
+        "share": 0.094394
+      },
+      {
+        "label": ">15m",
+        "count": 0,
+        "share": 0.0
+      }
+    ]
+  },
+  "window_10m": {
+    "requests": 2254,
+    "sessions": 1831
+  },
+  "kv": [
+    {
+      "id": "qwen3-32b",
+      "name": "Qwen3-32B",
+      "layout": "GQA, 8 KV heads, 64 layers",
+      "bytes_per_token": 262144,
+      "per_token": "256 KiB",
+      "whole_trace_bytes": 5895379484672,
+      "whole_trace": "5.4 TiB",
+      "median_prompt_bytes": 3037462528,
+      "median_prompt": "2.83 GiB"
+    },
+    {
+      "id": "deepseek-v3",
+      "name": "DeepSeek-V3",
+      "layout": "MLA, 576 values per layer, 61 layers",
+      "bytes_per_token": 70656,
+      "per_token": "69 KiB",
+      "whole_trace_bytes": 1588989001728,
+      "whole_trace": "1.4 TiB",
+      "median_prompt_bytes": 818691072,
+      "median_prompt": "0.76 GiB"
+    },
+    {
+      "id": "nemotron-3-super",
+      "name": "Nemotron 3 Super 120B-A12B",
+      "layout": "8 attention layers, plus Mamba state per sequence",
+      "bytes_per_token": 8192,
+      "per_token": "8 KiB",
+      "whole_trace_bytes": 184230608896,
+      "whole_trace": "0.2 TiB",
+      "median_prompt_bytes": 94920704,
+      "median_prompt": "0.09 GiB"
+    }
+  ],
+  "notes": {
+    "arrival": "Load holds near 222 a minute with short spikes. Within a second it peaks at 13 requests, which is the burst a Poisson generator at the same average almost never makes.",
+    "prompts": "Half the prompts are under 11.6K tokens, and one in ten is over 38.6K. The long tail is where prefill time and KV size grow fastest.",
+    "turns": "A turn joins a session when its leading block hashes match an earlier request for at least two blocks, using the longest match. 1,672 requests continue an earlier one, and that chain accounts for 100% of all reused blocks.",
+    "gaps": "The median follow-up lands 64 seconds later and one in ten waits over 5 minutes. A cache has to hold that context the whole time or the next turn pays full prefill again.",
+    "kv": "This trace needs about 5.4 TiB of KV on a dense GQA model and 0.2 TiB on a hybrid model with few attention layers. That gap decides whether host memory is enough or a shared tier is needed."
+  },
+  "kpis": [
+    {
+      "value": "3,993",
+      "label": "requests in 17 min"
+    },
+    {
+      "value": "3.9/s",
+      "label": "average, peak 13 in 1 s"
+    },
+    {
+      "value": "11.6K",
+      "label": "median input, p99 66.5K"
+    },
+    {
+      "value": "69",
+      "label": "median output tokens"
+    },
+    {
+      "value": "64%",
+      "label": "of prefix blocks seen before"
+    },
+    {
+      "value": "2,321",
+      "label": "sessions, longest 15 turns"
+    }
+  ],
+  "title": "Mooncake Synthetic",
+  "family": "Mooncake",
+  "page_summary": "Long single prompts built from public data in the Mooncake FAST '25 release, with a few deep multi-turn chains mixed in.",
+  "description": "Long single prompts built from public data, with a few deep multi-turn chains.",
+  "license": "Apache-2.0",
+  "source_label": "Mooncake FAST '25 traces",
+  "source_url": "https://github.com/kvcache-ai/Mooncake/tree/main/FAST25-release/traces",
+  "citation": "Qin et al., Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving, USENIX FAST 2025",
+  "citation_url": "https://www.usenix.org/conference/fast25/presentation/qin",
+  "category": "long-context"
+}
