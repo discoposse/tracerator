@@ -1,0 +1,34 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap");
+
+:root {
+  --bg0: #f4f6f9;
+  --bg1: #e9edf2;
+  --line2: #e9edf2;
+  --line: #d5dee8;
+  --ink: #201e1e;
+  --dark: #22314a;
+  --navy: #374967;
+  --mid: #4f6e92;
+  --steel: #7594b2;
+  --pale: #bdd6e7;
+  --blue-l: #dce8f6;
+  --blue: #1f6fd1;
+  --blue-d: #1f5faf;
+  --gray: #9aa9bd;
+  --shadow: 0 4px 14px rgba(34, 49, 74, 0.08);
+  --radius: 8px;
+  --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --cds-background: var(--bg0);
+  --cds-layer: #ffffff;
+  --cds-border-subtle: var(--line);
+  --cds-text-primary: var(--ink);
+  --cds-text-secondary: var(--navy);
+  --cds-link-primary: var(--blue);
+  --cds-link-primary-hover: var(--blue-d);
+  --cds-focus: var(--blue);
+  --tr-ink: var(--ink);
+  --tr-muted: var(--mid);
+  --tr-line: var(--line);
+  --tr-accent: var(--blue);
+  --tr-accent-ink: var(--blue-d);
+}

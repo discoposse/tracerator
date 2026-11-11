@@ -1,4 +1,4 @@
-"""Evaluate Turn-2 AIPerf records for a LightInferra-style golden case."""
+"""Evaluate Turn-2 AIPerf records for a Turn-1 warm / Turn-2 resume case."""
 
 from __future__ import annotations
 
@@ -156,31 +156,16 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case-manifest", required=True)
     parser.add_argument("--regen-run-dir", required=True)
-    parser.add_argument("--remote-kv-run-dir")
-    parser.add_argument(
-        "--infinia-run-dir",
-        help="Deprecated alias for --remote-kv-run-dir",
-    )
+    parser.add_argument("--remote-kv-run-dir", required=True)
     parser.add_argument("--remote-kv-read-bytes", type=int)
-    parser.add_argument(
-        "--infinia-read-bytes",
-        type=int,
-        help="Deprecated alias for --remote-kv-read-bytes",
-    )
     parser.add_argument("--output", required=True)
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    remote_kv_run_dir = args.remote_kv_run_dir or args.infinia_run_dir
-    if not remote_kv_run_dir:
-        raise SystemExit("Set --remote-kv-run-dir")
-    remote_kv_read_bytes = (
-        args.remote_kv_read_bytes
-        if args.remote_kv_read_bytes is not None
-        else args.infinia_read_bytes
-    )
+    remote_kv_run_dir = args.remote_kv_run_dir
+    remote_kv_read_bytes = args.remote_kv_read_bytes
     result = compare_case_results(
         args.case_manifest,
         args.regen_run_dir,

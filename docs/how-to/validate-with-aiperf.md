@@ -73,6 +73,6 @@ source .venv/bin/activate
 pip install aiperf
 ```
 
-A full server + AIPerf setup for macOS and Linux is in [aiperf-toolkit](https://github.com/discoposse/aiperf-toolkit).
+AIPerf itself is [ai-dynamo/aiperf](https://github.com/ai-dynamo/aiperf) (Apache-2.0). A full server + AIPerf setup for macOS and Linux is in [aiperf-toolkit](https://github.com/discoposse/aiperf-toolkit).
 
 `./scripts/validate-with-aiperf.sh --help` lists flags, including `--slice-duration` for `aiperf plot --dashboard`.

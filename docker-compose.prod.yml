@@ -8,7 +8,6 @@ services:
     environment:
       TRACERATOR_CC_WEKA_DIR: /external/cc-traces-weka-with-subagents-051826
       TRACERATOR_RAGPULSE_DIR: /external/RAGPulse
-      TRACERATOR_CODEX_SWEBENCHPRO_DIR: /external/codex_swebenchpro_traces
       TRACERATOR_AIPERF_TOOLKIT_DIR: /external/aiperf-toolkit
       TRACERATOR_SAGESERVE_DIR: /external/SageServe
       HF_TOKEN: ${HF_TOKEN:-}
@@ -19,7 +18,6 @@ services:
     volumes:
       - ${TRACERATOR_CC_WEKA_DIR:-./external/cc-traces-weka-with-subagents-051826}:/external/cc-traces-weka-with-subagents-051826:ro
       - ${TRACERATOR_RAGPULSE_DIR:-./external/RAGPulse}:/external/RAGPulse:ro
-      - ${TRACERATOR_CODEX_SWEBENCHPRO_DIR:-./external/codex_swebenchpro_traces}:/external/codex_swebenchpro_traces:ro
       - ${TRACERATOR_AIPERF_TOOLKIT_DIR:-./external/aiperf-toolkit}:/external/aiperf-toolkit:ro
       - ${TRACERATOR_SAGESERVE_DIR:-./external/SageServe}:/external/SageServe:ro
     healthcheck:

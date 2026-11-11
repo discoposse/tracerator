@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Workflows · Tracerator</title>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/carbon.css">
+  <link rel="stylesheet" href="/css/workspace.css">
+  <link rel="stylesheet" href="/css/traces.css">
+</head>
+<body class="workspace-body traces-body">
+  <nav class="workspace-nav">
+    <a class="nav-brand" href="/">Tracerator</a>
+    <div class="nav-links">
+      <a href="/traces">Traces</a>
+      <a href="/workflows" class="active">Workflows</a>
+      <a href="/">Runs</a>
+      <a href="/compare">Compare</a>
+      <a href="/study">Study</a>
+      <a href="https://github.com/discoposse/tracerator/tree/main/docs">Docs</a>
+    </div>
+  </nav>
+  <main class="traces-shell">
+    <h1>Workflows</h1>
+    <p class="lede">A workflow will keep a trace, a model, and a hardware setup together so you can run them again. The canvas is the next piece of Tracerator. Until then, start a run from the trace you already picked.</p>
+    <p><button type="button" class="btn primary" id="start-run" style="background:#1F6FD1;color:#fff;border:1px solid #1F6FD1;border-radius:8px;font-weight:600;padding:10px 16px;">Start a run from this trace</button></p>
+    <p class="axis-caption" id="workflow-status"></p>
+  </main>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const trace = params.get("trace") || "conversation";
+      const status = document.getElementById("workflow-status");
+      status.textContent = "Trace: " + trace;
+      document.getElementById("start-run").addEventListener("click", async function () {
+        status.textContent = "Creating a run…";
+        const response = await fetch("/runs", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            name: trace + " run",
+            source: trace === "wall-clock-win" ? "conversation" : trace,
+            scenario: trace === "wall-clock-win" ? "wall_clock_win" : "standard",
+            params: {
+              source: trace === "wall-clock-win" ? "conversation" : trace,
+              scenario: trace === "wall-clock-win" ? "wall_clock_win" : "standard",
+              trace_scenario: trace === "wall-clock-win" ? "wall_clock_win" : undefined,
+              scale: 0.05,
+              seed: 42
+            }
+          })
+        });
+        const run = await response.json();
+        if (!response.ok) {
+          status.textContent = run.error || "Could not create the run";
+          return;
+        }
+        window.location.href = "/runs/" + run.id + "/view";
+      });
+    }());
+  </script>
+</body>
+</html>

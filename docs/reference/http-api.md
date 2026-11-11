@@ -20,10 +20,12 @@ Flask app in `app.py`. UI origin is http://localhost:8008.
 | Method | Path | Purpose |
 |--------|------|---------|
 | GET | `/sources` | Discovered baselines |
-| GET | `/sources/lightinferra-golden/options` | Golden suites, models, contexts, defaults |
-| GET | `/sources/lightinferra-ddn-golden/options` | Deprecated alias of the golden options route |
+| GET | `/sources/lightinferra-golden/options` | Turn-1 warm / Turn-2 resume suites, models, contexts, defaults |
+| GET | `/traces` | Trace card grid. `/profiles` redirects here |
+| GET | `/traces/<id>` | Trace profile page |
+| GET | `/traces/<id>/trace.jsonl` | Bundled JSONL download, when one exists |
 | GET | `/trace-cards` | Built-in cards |
 
 Legacy `/generate`, `/manifest`, and `/aiperf/*` routes remain for scripts.
 
-The golden source id is `lightinferra-golden`. The generate API still accepts `lightinferra-ddn-golden` and stores the canonical id.
+The golden source id is `lightinferra-golden`. Its label is Turn-1 warm / Turn-2 resume.

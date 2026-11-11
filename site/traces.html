@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Traces · Tracerator</title>
+  <link rel="stylesheet" href="/css/tokens.css">
+  <link rel="stylesheet" href="/carbon.css">
+  <link rel="stylesheet" href="/css/workspace.css">
+  <link rel="stylesheet" href="/css/traces.css">
+</head>
+<body class="workspace-body traces-body">
+  <nav class="workspace-nav">
+    <a class="nav-brand" href="/">Tracerator</a>
+    <div class="nav-links">
+      <a href="/traces" class="active">Traces</a>
+      <a href="/workflows">Workflows</a>
+      <a href="/">Runs</a>
+      <a href="/compare">Compare</a>
+      <a href="/study">Study</a>
+      <a href="https://github.com/discoposse/tracerator/tree/main/docs">Docs</a>
+    </div>
+  </nav>
+  <main class="traces-shell">
+    <h1>Which Workload Should You Replay?</h1>
+    <p class="lede">Every card is a real or seeded request trace with its arrival times, prompt and output lengths, and shared prefix blocks. Open one to see its full profile and run it through the simulator against your model and hardware.</p>
+    <div class="filters" id="trace-filters" role="tablist"></div>
+    <div class="trace-grid" id="trace-grid" aria-live="polite"></div>
+    <noscript>
+      <p>Enable JavaScript to browse Mooncake Conversation, Mooncake Tool and Agent, Mooncake Synthetic, and KV Reuse Stress.</p>
+    </noscript>
+  </main>
+  <script src="/js/charts.js"></script>
+  <script src="/js/trace_card.js"></script>
+  <script src="/js/traces.js"></script>
+</body>
+</html>

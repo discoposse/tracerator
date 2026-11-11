@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI entry point for Tracerator's LightInferra-style golden trace set."""
+"""CLI entry point for Tracerator's Turn-1 warm / Turn-2 resume trace set."""
 
 import sys
 from pathlib import Path

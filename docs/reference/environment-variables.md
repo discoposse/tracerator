@@ -16,7 +16,6 @@ Compose reads a repo-root `.env` file. Copy `.env.example`. Do not commit `.env`
 | `TRACERATOR_RUNS_ROOT` | Run artifact directory. Default `artifacts/runs` |
 | `TRACERATOR_RAGPULSE_DIR` | Host RAGPulse checkout. Default `./external/RAGPulse` |
 | `TRACERATOR_CC_WEKA_DIR` | Host CC Weka checkout. Default `./external/cc-traces-weka-with-subagents-051826` |
-| `TRACERATOR_CODEX_SWEBENCHPRO_DIR` | Host Codex SWE-Bench Pro traces. Default `./external/codex_swebenchpro_traces` |
 | `TRACERATOR_AIPERF_TOOLKIT_DIR` | Host aiperf-toolkit checkout. Default `./external/aiperf-toolkit` |
 | `TRACERATOR_SAGESERVE_DIR` | Host SageServe checkout. Default `./external/SageServe` |
 | `TRACERATOR_PUBLISH_PORT` | Host port for `docker-compose.prod.yml`. Default `8008` |

@@ -5,14 +5,17 @@ from __future__ import annotations
 
 from collections import Counter
 from functools import lru_cache
-import hashlib
+import json
 import re
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
+from trace_profile import build_profile
 from trace_sources import TraceSource, discover_trace_sources, load_source_records
 
-SCHEMA_VERSION = "tracerator.trace_card.v1"
+SCHEMA_VERSION = "tracerator.trace_card.v2"
 SAMPLE_LIMIT = 2_000
+PROFILE_DIR = Path(__file__).resolve().parent / "site" / "data" / "traces"
 KNOWN_REQUEST_COUNTS = {
     "conversation": 12_031,
     "toolagent": 23_608,
@@ -32,15 +35,6 @@ ISL_BINS = [
     ("64-128K", 65537, 131072),
     (">128K", 131073, 10**12),
 ]
-PALETTES = [
-    {"ink": "#0b1220", "accent": "#0f62fe", "signal": "#ff832b", "paper": "#f7f9fb"},
-    {"ink": "#161616", "accent": "#198038", "signal": "#d02670", "paper": "#f4f4f4"},
-    {"ink": "#082b36", "accent": "#007d79", "signal": "#f1c21b", "paper": "#f8f6ef"},
-    {"ink": "#231f20", "accent": "#8a3ffc", "signal": "#24a148", "paper": "#f7f7f2"},
-    {"ink": "#1c0f13", "accent": "#da1e28", "signal": "#1192e8", "paper": "#faf7f2"},
-]
-
-
 def _number(value: Any, fallback: float = 0) -> float:
     try:
         return float(value)
@@ -146,21 +140,6 @@ def _record_stats(
     }
 
 
-def _fingerprint(card_id: str, distribution: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-    digest = hashlib.blake2b(card_id.encode("utf-8"), digest_size=8).digest()
-    palette = PALETTES[int.from_bytes(digest[:2], "big") % len(PALETTES)]
-    bars = [
-        round(_number((distribution.get(name) or {}).get("share")), 6)
-        for name, _low, _high in ISL_BINS
-    ]
-    return {
-        "serial": digest.hex().upper()[:8],
-        "palette": palette,
-        "bars": bars,
-        "route": [byte % 9 for byte in digest],
-    }
-
-
 def _traits(family: str, description: str, stats: Dict[str, Any], available: bool) -> List[str]:
     text = f"{family} {description}".lower()
     traits: List[str] = []
@@ -191,6 +170,52 @@ def _traits(family: str, description: str, stats: Dict[str, Any], available: boo
     return traits[:4]
 
 
+def load_saved_profile(trace_id: str) -> Optional[Dict[str, Any]]:
+    path = PROFILE_DIR / trace_id / "profile.json"
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _charts_from_profile(profile: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not profile or not profile.get("rpm"):
+        return None
+    histogram = profile.get("input_histogram") or []
+    return {
+        "rpm": profile.get("rpm") or [],
+        "input_shares": [round(_number(bucket.get("share")), 6) for bucket in histogram],
+        "input_labels": [bucket.get("label") for bucket in histogram],
+        "duration_min": int(_number(profile.get("duration_min"))),
+    }
+
+
+def _stats_from_profile(profile: Dict[str, Any], manifest: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    manifest = manifest or {}
+    return {
+        "request_count": int(_number(manifest.get("n_requests"), profile.get("request_count"))),
+        "sample_count": int(_number(profile.get("request_count"))),
+        "duration_ms": int(_number(manifest.get("duration_ms"), profile.get("duration_ms"))),
+        "avg_rps": round(_number(manifest.get("avg_rps"), profile.get("avg_rps")), 2),
+        "max_concurrency": int(_number(manifest.get("max_concurrency"), profile.get("peak_per_second"))),
+        "median_input": int(_number(manifest.get("median_input"), profile.get("median_input"))),
+        "p95_input": int(_number(manifest.get("p95_input"), profile.get("p99_input"))),
+        "median_output": int(_number(manifest.get("median_output"), profile.get("median_output"))),
+        "cache_hit_ratio": round(_number(profile.get("blocks_reused")), 4),
+        "blocks_reused": round(_number(profile.get("blocks_reused")), 4),
+        "unique_blocks": int(_number(profile.get("unique_blocks"))),
+        "peak_per_second": int(_number(profile.get("peak_per_second"))),
+        "duration_min": int(_number(profile.get("duration_min"))),
+        "request_count_is_sample": False,
+    }
+
+
+def _source_line(label: Optional[str], license_name: Optional[str]) -> str:
+    text = label or "Tracerator"
+    if license_name:
+        return f"{text}, {license_name}"
+    return text
+
+
 def _build_card(
     *,
     card_id: str,
@@ -200,13 +225,17 @@ def _build_card(
     stats: Dict[str, Any],
     available: bool,
     status: str,
-    edition: str,
     provenance: Dict[str, Any],
     cache_fidelity: str,
+    category: Optional[str] = None,
+    charts: Optional[Dict[str, Any]] = None,
+    footer: Optional[str] = None,
+    reference: bool = False,
+    reference_note: Optional[str] = None,
+    trace_url: Optional[str] = None,
     run_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     distribution = stats.pop("isl_distribution", {})
-    fingerprint = _fingerprint(card_id, distribution)
     return {
         "artifact_type": "trace_card",
         "schema_version": SCHEMA_VERSION,
@@ -214,59 +243,93 @@ def _build_card(
         "title": title,
         "family": family,
         "description": description,
-        "edition": edition,
+        "category": category,
+        "source_line": _source_line(provenance.get("label"), provenance.get("license")),
         "availability": {
             "available": available,
             "status": status,
             "cache_fidelity": cache_fidelity,
+            "reference": reference,
         },
         "provenance": provenance,
         "stats": stats,
         "distribution": distribution,
+        "charts": charts,
+        "footer": footer,
+        "reference_note": reference_note,
         "traits": _traits(f"{family} {title}", description, stats, available),
-        "fingerprint": fingerprint,
         "links": {
+            "trace": trace_url,
             "run": run_url,
             "original": provenance.get("url"),
         },
     }
 
 
+def _profile_for_source(source: TraceSource) -> Optional[Dict[str, Any]]:
+    saved = load_saved_profile(source.id)
+    if saved:
+        return saved
+    if not source.available or source.mode in {"lightinferra_golden", "unsupported"}:
+        return None
+    records = load_source_records(source.id, max_records=None)
+    return build_profile(records, trace_id=source.id)
+
+
 def build_source_trace_card(source: TraceSource) -> Dict[str, Any]:
-    records: List[Dict[str, Any]] = []
     status = source.status
-    if source.available:
-        try:
-            records = load_source_records(source.id, max_records=SAMPLE_LIMIT)
-        except (OSError, ValueError, KeyError) as exc:
-            status = f"adapter error: {exc}"
-    available = bool(records)
-    stats = _record_stats(records)
-    known_count = KNOWN_REQUEST_COUNTS.get(source.id)
-    if known_count:
-        stats["request_count"] = known_count
-        stats["request_count_is_sample"] = False
+    profile = None
+    try:
+        profile = _profile_for_source(source)
+    except (OSError, ValueError, KeyError) as exc:
+        status = f"adapter error: {exc}"
+    charts = _charts_from_profile(profile)
+    reference = (not source.available) or source.mode == "unsupported"
+    if profile:
+        stats = _stats_from_profile(profile)
+        known_count = KNOWN_REQUEST_COUNTS.get(source.id)
+        if known_count and not load_saved_profile(source.id):
+            stats["request_count"] = known_count
+        footer = profile.get("footer")
+        available = True
     else:
-        stats["request_count_is_sample"] = bool(
-            available and len(records) >= SAMPLE_LIMIT
+        stats = _record_stats([])
+        footer = None
+        available = source.available and source.mode == "lightinferra_golden"
+    if reference and source.mode == "unsupported":
+        reference_note = "Not bundled. This release has no prefix hashes, so it stays reference-only."
+    elif reference:
+        reference_note = "Not bundled. Fetch it once with the import script and it replays like the others."
+    elif source.mode == "lightinferra_golden":
+        reference_note = (
+            "Generated when you start a run. Pick a model and context, and Tracerator writes the Turn-1 warm and Turn-2 resume pair."
         )
+        footer = "Open a run to generate it"
+    else:
+        reference_note = None
     return _build_card(
-        card_id=f"source:{source.id}",
+        card_id=source.id,
         title=source.label,
         family=source.family,
         description=source.description,
         stats=stats,
-        available=available,
-        status="ready" if available else status,
-        edition="BUILT-IN",
+        available=available and not reference,
+        status="ready" if available and not reference else status,
         provenance={
             "label": source.source_label or source.family,
             "url": source.source_url,
             "license": source.license,
             "adapter": source.mode,
-            "sample_limit": SAMPLE_LIMIT if available else None,
+            "citation": source.citation,
+            "citation_url": source.citation_url,
         },
         cache_fidelity=source.cache_fidelity,
+        category=source.category,
+        charts=None if reference else charts,
+        footer=footer,
+        reference=reference,
+        reference_note=reference_note,
+        trace_url=f"/traces/{source.id}",
     )
 
 
@@ -280,15 +343,16 @@ def build_run_trace_card(
     integrity = manifest.get("integrity") or {}
     source_url = base.get("source_url")
     source_label = base.get("source_label") or base.get("family") or "Tracerator"
+    profile = build_profile(records, trace_id=f"run-{run_id}")
+    stats = _stats_from_profile(profile, manifest)
     return _build_card(
         card_id=f"run:{run_id}",
         title=title or base.get("label") or run_id,
         family=base.get("family") or "Tracerator run",
         description=base.get("description") or manifest.get("note") or "Generated Tracerator workload trace.",
-        stats=_record_stats(records, manifest),
+        stats=stats,
         available=True,
         status="AIPerf ready" if integrity.get("aiperf_ready", True) else "review integrity",
-        edition="GENERATED",
         provenance={
             "label": source_label,
             "url": source_url,
@@ -297,59 +361,60 @@ def build_run_trace_card(
             "generated_from": base.get("id"),
         },
         cache_fidelity=base.get("cache_fidelity") or "not specified",
-        run_url=f"/runs/{run_id}",
+        category=None,
+        charts=_charts_from_profile(profile),
+        footer=profile.get("footer"),
+        trace_url=f"/runs/{run_id}/view",
+        run_url=f"/runs/{run_id}/view",
     )
 
 
 def build_scenario_trace_card() -> Dict[str, Any]:
-    distribution = {
-        "<=1K": {"count": 40, "share": 0.01},
-        "1-2K": {"count": 80, "share": 0.02},
-        "2-4K": {"count": 160, "share": 0.04},
-        "4-8K": {"count": 320, "share": 0.08},
-        "8-16K": {"count": 640, "share": 0.16},
-        "16-32K": {"count": 920, "share": 0.23},
-        "32-64K": {"count": 1120, "share": 0.28},
-        "64-128K": {"count": 600, "share": 0.15},
-        ">128K": {"count": 120, "share": 0.03},
-    }
-    stats = {
-        "request_count": 4000,
-        "sample_count": 4000,
-        "duration_ms": 1_995_000,
-        "avg_rps": 2.01,
-        "max_concurrency": 20,
-        "median_input": 32_768,
-        "p95_input": 98_304,
-        "median_output": 96,
-        "cache_hit_ratio": 0.82,
-        "unique_blocks": 48_000,
-        "isl_distribution": distribution,
-    }
+    profile = load_saved_profile("wall-clock-win")
+    description = "Long prompts that come back after a delay, sized so the working set spills past GPU memory."
+    if profile:
+        stats = _stats_from_profile(profile)
+        charts = _charts_from_profile(profile)
+        footer = profile.get("footer") or "Seeded, so every run matches"
+    else:
+        stats = _record_stats([])
+        charts = None
+        footer = "Seeded, so every run matches"
     return _build_card(
-        card_id="scenario:wall-clock-win",
-        title="KV Reuse Stress Scenario",
-        family="Tracerator scenario",
-        description=(
-            "Purpose-built prefix-cache pressure with delayed reuse, high fan-out, "
-            "and a long-context working set."
-        ),
+        card_id="wall-clock-win",
+        title="KV Reuse Stress",
+        family="Tracerator",
+        description=description,
         stats=stats,
         available=True,
-        status="generator built-in",
-        edition="SCENARIO",
+        status="seeded",
         provenance={
-            "label": "Tracerator",
-            "url": "/runs/new",
-            "license": None,
+            "label": "Built-in scenario, generated",
+            "url": "https://github.com/discoposse/tracerator",
+            "license": "Apache-2.0",
             "adapter": "scenario",
+            "citation": "Tracerator KV reuse stress scenario",
+            "citation_url": "https://github.com/discoposse/tracerator",
         },
         cache_fidelity="deterministic 512-token block hash_ids",
+        category="long-context",
+        charts=charts,
+        footer=footer,
+        trace_url="/traces/wall-clock-win",
     )
 
 
 @lru_cache(maxsize=1)
 def list_builtin_trace_cards() -> List[Dict[str, Any]]:
     cards = [build_source_trace_card(source) for source in discover_trace_sources()]
-    cards.append(build_scenario_trace_card())
-    return cards
+    scenario = build_scenario_trace_card()
+    ordered = []
+    for card in cards:
+        if card["id"] == "synthetic":
+            ordered.append(card)
+            ordered.append(scenario)
+        else:
+            ordered.append(card)
+    if scenario not in ordered:
+        ordered.append(scenario)
+    return ordered

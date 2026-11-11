@@ -32,6 +32,5 @@ services:
       - ${TRACERATOR_HF_CACHE_DIR:-${HOME}/.cache/huggingface}:/root/.cache/huggingface
       - ${TRACERATOR_RAGPULSE_DIR:-./external/RAGPulse}:/external/RAGPulse:ro
       - ${TRACERATOR_CC_WEKA_DIR:-./external/cc-traces-weka-with-subagents-051826}:/external/cc-traces-weka-with-subagents-051826:ro
-      - ${TRACERATOR_CODEX_SWEBENCHPRO_DIR:-./external/codex_swebenchpro_traces}:/external/codex_swebenchpro_traces:ro
       - ${TRACERATOR_AIPERF_TOOLKIT_DIR:-./external/aiperf-toolkit}:/external/aiperf-toolkit:ro
       - ${TRACERATOR_SAGESERVE_DIR:-./external/SageServe}:/external/SageServe:ro

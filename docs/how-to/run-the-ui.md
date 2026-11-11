@@ -23,7 +23,6 @@ Empty directories under `external/` are enough for Compose to start. To attach a
 ```bash
 TRACERATOR_RAGPULSE_DIR=/path/to/RAGPulse
 TRACERATOR_CC_WEKA_DIR=/path/to/cc-traces-weka-with-subagents-051826
-TRACERATOR_CODEX_SWEBENCHPRO_DIR=/path/to/codex_swebenchpro_traces
 TRACERATOR_AIPERF_TOOLKIT_DIR=/path/to/aiperf-toolkit
 TRACERATOR_SAGESERVE_DIR=/path/to/SageServe
 ```

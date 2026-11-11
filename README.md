@@ -19,6 +19,7 @@ Generated traces keep selected source properties. They are planning and replay s
 - Bundled Mooncake FAST'25 baselines: Conversation, Tool & Agent, Synthetic
 - Parameterized variants: scale, ISL profile, reuse bias, extra sessions, seed
 - Integrity rule: `len(hash_ids) == ceil(input_length / 512)` on every row
+- Trace pages at `/traces`: arrival, prompt length, sessions, and KV size from the whole trace
 - Workspace: generate → AIPerf validate/replay → inspect → compare
 - Import path for other timestamped traces with prefix hashes
 
@@ -46,7 +47,7 @@ The Mooncake source narrative lives in [Mooncake/WORKLOAD_NARRATIVE.md](Mooncake
 | Tool & Agent | 23,608   | 47        | 6.3k / 30             | High reuse, bursty |
 | Synthetic    | 3,993    | 2         | 11.6k / 69            | Long context, lower sharing |
 
-Original traces and paper: [kvcache-ai/Mooncake](https://github.com/kvcache-ai/Mooncake).
+Original traces: [kvcache-ai/Mooncake](https://github.com/kvcache-ai/Mooncake). Paper: [USENIX FAST '25](https://www.usenix.org/conference/fast25/presentation/qin) and [arXiv:2407.00079](https://arxiv.org/abs/2407.00079).
 
 ## Schema
 

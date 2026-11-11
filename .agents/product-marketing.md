@@ -54,7 +54,7 @@
 - Explicit prefix `hash_ids` with an integrity rule.
 - Run-centric UI: generate → validate → replay → inspect → narrative.
 - Source import path (Mooncake, component hashes, SageServe).
-- Deterministic LightInferra-style Turn-1/Turn-2 golden case for external KV.
+- Deterministic Turn-1 warm / Turn-2 resume case for a remote KV store.
 **How we do it differently:** Shape real traces instead of sampling independent requests.
 **Why that's better:** Replay sees the same hot prefixes and millisecond bursts the source had.
 **Why customers choose us:** One zip that AIPerf can `analyze-trace` and `profile --custom-dataset-type mooncake_trace --fixed-schedule`.
@@ -83,7 +83,7 @@
 - "Trace generator with a comparison UI."
 - "Mooncake variants with a manifest."
 **Words to use:** trace, replay, prefix, `hash_ids`, burst, ISL, OSL, manifest, AIPerf, Mooncake, KV cache
-**Words to avoid:** magic, seamless, enterprise-grade, DDN, Infinia, internal hostnames
+**Words to avoid:** magic, seamless, enterprise-grade, vendor product names, internal hostnames
 **Glossary:**
 | Term | Meaning |
 |------|---------|

@@ -7,7 +7,7 @@
     return;
   }
 
-  const GOLDEN_SOURCE_IDS = new Set(["lightinferra-golden", "lightinferra-ddn-golden"]);
+  const GOLDEN_SOURCE_IDS = new Set(["lightinferra-golden"]);
   function isGoldenSource(id) {
     return GOLDEN_SOURCE_IDS.has(id);
   }
@@ -112,7 +112,6 @@
 
   function applyParams(params) {
     if (!params) return;
-    if (params.source === "lightinferra-ddn-golden") params.source = "lightinferra-golden";
     if (params.source && $("source-select").querySelector('option[value="' + params.source + '"]')) {
       $("source-select").value = params.source;
     }

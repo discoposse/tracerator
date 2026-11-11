@@ -1,26 +1,24 @@
 :root {
-  --cds-background: #f4f4f4;
+  --cds-background: #f4f6f9;
   --cds-layer: #ffffff;
-  --cds-layer-accent: #e0e0e0;
-  --cds-layer-hover: #f4f4f4;
+  --cds-layer-accent: #e9edf2;
+  --cds-layer-hover: #f4f6f9;
   --cds-field: #ffffff;
-  --cds-border-subtle: #e0e0e0;
-  --cds-border-strong: #8d8d8d;
-  --cds-border-inverse: #161616;
-  --cds-text-primary: #161616;
-  --cds-text-secondary: #525252;
-  --cds-text-placeholder: #6f6f6f;
+  --cds-border-subtle: #d5dee8;
+  --cds-border-strong: #7594b2;
+  --cds-border-inverse: #22314a;
+  --cds-text-primary: #201e1e;
+  --cds-text-secondary: #374967;
+  --cds-text-placeholder: #4f6e92;
   --cds-text-on-color: #ffffff;
-  --cds-link-primary: #0f62fe;
-  --cds-link-primary-hover: #0043ce;
-  --cds-focus: #0f62fe;
+  --cds-link-primary: #1f6fd1;
+  --cds-link-primary-hover: #1f5faf;
+  --cds-focus: #1f6fd1;
   --font-sans: "IBM Plex Sans", "Helvetica Neue", Arial, ui-sans-serif, sans-serif;
-  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
 }
 
 * {
   box-sizing: border-box;
-  border-radius: 0 !important;
 }
 
 html,
@@ -70,9 +68,9 @@ select:focus-visible {
 }
 
 pre,
-.font-mono,
-[class*="font-mono"] {
-  font-family: var(--font-mono) !important;
+code,
+kbd {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 .bg-white,
@@ -129,11 +127,9 @@ pre,
   border: 1px solid transparent;
   padding: 10px 12px !important;
   color: var(--cds-text-secondary) !important;
-  font-family: var(--font-mono);
-  font-size: 10px !important;
-  font-weight: 600;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  font-family: var(--font-sans);
+  font-size: 14px !important;
+  font-weight: 500;
   text-decoration: none;
 }
 
@@ -156,16 +152,8 @@ pre,
 }
 
 label,
-.uppercase,
-[class*="uppercase"] {
-  letter-spacing: 0.14em !important;
-}
-
-label,
-label span,
-.uppercase,
-[class*="uppercase"] {
-  font-family: var(--font-mono);
+label span {
+  font-family: var(--font-sans);
 }
 
 input[type="text"],
@@ -227,7 +215,7 @@ a#download-link,
 .bg-slate-900:hover,
 a#download-link:hover,
 #export-report:hover {
-  background: #393939 !important;
+  background: #1f5faf !important;
   color: var(--cds-text-on-color) !important;
 }
 
@@ -242,16 +230,15 @@ a#download-link:hover,
 .kv-table th {
   background: var(--cds-background);
   color: var(--cds-text-secondary) !important;
-  font-family: var(--font-mono);
-  font-size: 10px !important;
-  letter-spacing: 0.14em !important;
+  font-family: var(--font-sans);
+  font-size: 12px !important;
 }
 
 .track,
 .fill,
 .isl-track,
 .isl-fill {
-  border-radius: 0 !important;
+  border-radius: 2px;
 }
 
 .track,
@@ -297,8 +284,8 @@ a#download-link:hover,
 .manifest-item__sub {
   margin-top: 2px;
   color: var(--cds-text-secondary);
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-family: var(--font-sans);
+  font-size: 12px;
 }
 
 .manifest-item__actions {

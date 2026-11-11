@@ -4,17 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Compare · Tracerator</title>
+  <link rel="stylesheet" href="/css/tokens.css">
   <link rel="stylesheet" href="/carbon.css">
   <link rel="stylesheet" href="/css/workspace.css">
 </head>
 <body class="workspace-body">
   <div class="workspace-shell">
     <nav class="workspace-nav no-print">
+      <a class="nav-brand" href="/">Tracerator</a>
       <div class="nav-links">
-        <a href="/">Workspace</a>
-        <a href="/profiles">Profiles</a>
+        <a href="/traces">Traces</a>
+        <a href="/workflows">Workflows</a>
+        <a href="/">Runs</a>
         <a href="/compare" class="active">Compare</a>
         <a href="/study">Study</a>
+        <a href="https://github.com/discoposse/tracerator/tree/main/docs">Docs</a>
       </div>
     </nav>
 
@@ -544,7 +548,7 @@
         const yy = y(tick);
         return `
           <line x1="${margin.left}" y1="${yy}" x2="${width - margin.right}" y2="${yy}" stroke="#e2e8f0" stroke-width="1"/>
-          <text x="${margin.left - 10}" y="${yy + 4}" text-anchor="end" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#64748b">${(tick * 100).toFixed(0)}%</text>`;
+          <text x="${margin.left - 10}" y="${yy + 4}" text-anchor="end" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="11" fill="#64748b">${(tick * 100).toFixed(0)}%</text>`;
       }).join('');
 
       const bars = ISL_BINS.map((name, bucketIndex) => {
@@ -564,7 +568,7 @@
         }).join('');
         return `
           ${bucketBars}
-          <text x="${labelX}" y="${height - 35}" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" fill="#475569">${esc(name)}</text>`;
+          <text x="${labelX}" y="${height - 35}" text-anchor="middle" font-family="IBM Plex Sans, Helvetica Neue, Arial, sans-serif" font-size="11" fill="#475569">${esc(name)}</text>`;
       }).join('');
 
       const legend = legendItems.map(({ trace, x, y }) => {
